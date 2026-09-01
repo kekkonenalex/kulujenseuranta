@@ -47,7 +47,36 @@ kulujenseuranta/
     └── ui-categories.js        kategorioiden hallinta
 ```
 
-## Käyttöönotto
+## Tämän asennuksen tiedot (tehty valmiiksi)
+
+| Kohde | Arvo |
+|---|---|
+| Supabase-projekti | `kulujenseuranta` (organisaatio kekkonenalex, region North EU / Tukholma) |
+| Projektin osoite | `https://wqibkufakgdmzcovmdos.supabase.co` |
+| Avain `js/config.js`:ssä | publishable key (turvallinen selaimessa, RLS suojaa datan) |
+| Tietokanta | `supabase-schema.sql` ajettu: taulut, indeksit, triggerit ja RLS-politiikat luotu |
+| Repositorio | `https://github.com/kekkonenalex/kulujenseuranta` (julkinen) |
+| Hosting | GitHub Pages, `main`-haara juuresta |
+
+Tarkistettu käyttöönoton yhteydessä: anonyymi luku palauttaa tyhjän listan ja anonyymi
+kirjoitus torjutaan virheellä `401 / 42501 row-level security policy` — eli RLS on voimassa.
+
+**Huom:** Supabasessa uusien tunnusten luonti kannattaa sulkea sen jälkeen kun oma tunnus on
+luotu: *Authentication → Sign In / Providers → Email → Allow new users to sign up* pois päältä.
+Muuten kuka tahansa julkisen URLin löytävä voi luoda tunnuksen projektiin (hän näkee vain
+oman datansa, mutta se kuluttaa ilmaistilin kvoottaa).
+
+### Sovelluksen päivitys jatkossa
+
+```bash
+git add . && git commit -m "kuvaus" && git push
+```
+
+GitHub Pages julkaisee muutokset noin minuutissa. Service worker cachettaa sovelluksen kuoren,
+joten puhelimessa uusi versio tulee käyttöön viimeistään toisella avauksella. Jos haluat pakottaa
+päivityksen heti, nosta `APP_VERSION` tiedostossa `js/config.js` ja `VERSION` tiedostossa `sw.js`.
+
+## Käyttöönotto (alkuperäiset ohjeet)
 
 ### 1. Supabase-projekti
 

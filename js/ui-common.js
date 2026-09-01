@@ -70,6 +70,9 @@ export function openModal(html) {
   sheet.innerHTML = html;
   show(modal, true);
 
+  // Jos modaali avataan toisen paalle (esim. vahvistuskysely), vanha
+  // Escape-kuuntelija pitaa poistaa - muuten niita kertyy.
+  if (escapeHandler) document.removeEventListener('keydown', escapeHandler);
   escapeHandler = (event) => { if (event.key === 'Escape') closeModal(); };
   document.addEventListener('keydown', escapeHandler);
 

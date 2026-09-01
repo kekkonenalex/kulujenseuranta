@@ -5,19 +5,22 @@
 
 import { summaryFor, monthTotalCents } from './state.js';
 import { state } from './state.js';
-import { formatMoney, addMonths, monthLabel } from './format.js';
+import { formatMoney, addMonths, monthLabelIn } from './format.js';
 import { qs, show, escapeHtml } from './ui-common.js';
 
 function comparisonText(currentCents, previousMonth) {
   const previousCents = monthTotalCents(previousMonth);
-  if (previousCents === 0) {
-    return `Ei kuluja kuussa ${monthLabel(previousMonth)}.`;
-  }
+  const label = monthLabelIn(previousMonth);              // esim. 'elokuussa 2026'
+  const capitalised = label.charAt(0).toUpperCase() + label.slice(1);
+
+  if (previousCents === 0) return `${capitalised} ei kuluja.`;
+
   const diff = currentCents - previousCents;
+  if (diff === 0) return `Sama kuin ${label}.`;
+
   const share = Math.round((Math.abs(diff) / previousCents) * 100);
-  if (diff === 0) return `Sama kuin ${monthLabel(previousMonth)}.`;
   const direction = diff > 0 ? 'enemmän' : 'vähemmän';
-  return `${formatMoney(Math.abs(diff))} (${share} %) ${direction} kuin ${monthLabel(previousMonth)}.`;
+  return `${formatMoney(Math.abs(diff))} (${share} %) ${direction} kuin ${label}.`;
 }
 
 export function renderSummaryView() {

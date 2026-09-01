@@ -94,6 +94,15 @@ export function monthLabel(monthKey) {
   return monthFmt.format(new Date(y, m - 1, 1));
 }
 
+/**
+ * Kuukausi inessiivissa: '2026-08' -> 'elokuussa 2026'.
+ * Kaikki suomen kuukausien nimet paattyvat '-kuu', joten taivutus on
+ * yksi saanto: kuu -> kuussa.
+ */
+export function monthLabelIn(monthKey) {
+  return monthLabel(monthKey).replace(/kuu(?=\s|$)/, 'kuussa');
+}
+
 /** '2026-09-01' -> '1.9.2026' */
 export function formatDate(iso) {
   const [y, m, d] = String(iso).split('-').map(Number);
