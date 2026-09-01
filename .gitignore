@@ -1,0 +1,9 @@
+# Paikalliset roskat
+.DS_Store
+Thumbs.db
+*.log
+
+# HUOM: js/config.js on tarkoituksella versionhallinnassa.
+# Se sisaltaa vain julkisen anon-avaimen, jonka RLS suojaa.
+# Jos haluat pitaa senkin pois repositoriosta, lisaa se tahan
+# ja kirjoita arvot vasta julkaisun jalkeen.

@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
+<title>Kulujenseuranta</title>
+<meta name="description" content="Henkilökohtainen kulujenseuranta">
+<meta name="theme-color" content="#0f1115">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kulut">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ============ Käynnistys ============ -->
+<div id="boot" class="boot">
+  <div class="boot-spinner" aria-hidden="true"></div>
+  <p>Ladataan…</p>
+</div>
+
+<!-- ============ Asetusvirhe (config.js täyttämättä) ============ -->
+<section id="view-config" class="screen hidden">
+  <div class="card card-narrow">
+    <h1>Asetukset puuttuvat</h1>
+    <p>Sovellus ei tiedä mihin Supabase-projektiin se yhdistää.</p>
+    <p>Avaa tiedosto <code>js/config.js</code> ja täytä <code>SUPABASE_URL</code> ja
+       <code>SUPABASE_ANON_KEY</code>. Löydät molemmat Supabase-projektin
+       kohdasta <em>Project Settings → API</em>.</p>
+    <p class="muted">Tarkat ohjeet ovat tiedostossa <code>README.md</code>.</p>
+  </div>
+</section>
+
+<!-- ============ Kirjautuminen ============ -->
+<section id="view-auth" class="screen hidden">
+  <div class="card card-narrow">
+    <h1 class="auth-title">Kulujenseuranta</h1>
+    <p class="muted" id="auth-lead">Kirjaudu sisään jatkaaksesi.</p>
+
+    <form id="auth-form" novalidate>
+      <label for="auth-email">Sähköposti</label>
+      <input id="auth-email" name="email" type="email" inputmode="email"
+             autocomplete="username" autocapitalize="off" spellcheck="false" required>
+
+      <label for="auth-password">Salasana</label>
+      <input id="auth-password" name="password" type="password"
+             autocomplete="current-password" minlength="8" required>
+
+      <p class="hint" id="auth-hint">Vähintään 8 merkkiä.</p>
+
+      <div id="auth-error" class="alert alert-error hidden" role="alert"></div>
+      <div id="auth-info" class="alert alert-info hidden" role="status"></div>
+
+      <button type="submit" class="btn btn-primary btn-block" id="auth-submit">Kirjaudu sisään</button>
+    </form>
+
+    <button type="button" class="btn btn-link btn-block" id="auth-toggle">
+      Ei vielä tunnusta? Luo tunnus
+    </button>
+  </div>
+</section>
+
+<!-- ============ Sovellus ============ -->
+<div id="view-app" class="app hidden">
+
+  <header class="topbar">
+    <span class="topbar-title" id="topbar-title">Kirjaa kulu</span>
+    <span id="offline-badge" class="badge badge-warn hidden">Ei verkkoa</span>
+  </header>
+
+  <main class="main">
+
+    <!-- ---------- Kirjaa ---------- -->
+    <section id="panel-entry" class="panel">
+      <form id="entry-form" novalidate>
+        <div class="amount-field">
+          <input id="entry-amount" type="text" inputmode="decimal" autocomplete="off"
+                 placeholder="0,00" aria-label="Summa euroina" enterkeyhint="done">
+          <span class="amount-currency" aria-hidden="true">€</span>
+        </div>
+
+        <div class="section-label">
+          <span>Kategoria</span>
+          <button type="button" class="btn btn-link btn-tiny" data-goto="settings">Hallitse</button>
+        </div>
+
+        <div id="entry-categories" class="cat-grid"></div>
+        <p id="entry-no-categories" class="empty hidden">
+          Ei kategorioita vielä. Luo ensimmäinen kategoria
+          <button type="button" class="btn btn-link btn-tiny" data-goto="settings">Asetuksista</button>.
+        </p>
+
+        <div class="section-label"><span>Päivämäärä</span></div>
+        <div class="date-row">
+          <button type="button" class="chip" id="entry-today">Tänään</button>
+          <button type="button" class="chip" id="entry-yesterday">Eilen</button>
+          <input type="date" id="entry-date" aria-label="Kulun päivämäärä">
+        </div>
+
+        <div class="section-label"><span>Kuvaus <span class="muted">(vapaaehtoinen)</span></span></div>
+        <input type="text" id="entry-description" maxlength="120" autocomplete="off"
+               placeholder="esim. K-Market" enterkeyhint="done">
+
+        <div id="entry-error" class="alert alert-error hidden" role="alert"></div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg" id="entry-submit">
+          Tallenna kulu
+        </button>
+      </form>
+    </section>
+
+    <!-- ---------- Kulut ---------- -->
+    <section id="panel-transactions" class="panel hidden">
+      <div class="month-nav" data-month-nav>
+        <button type="button" class="btn btn-icon" data-month-prev aria-label="Edellinen kuukausi">‹</button>
+        <span class="month-label" data-month-label></span>
+        <button type="button" class="btn btn-icon" data-month-next aria-label="Seuraava kuukausi">›</button>
+      </div>
+      <div class="month-total">
+        <span class="muted">Kuukauden kulut</span>
+        <strong id="tx-month-total">0,00 €</strong>
+      </div>
+      <div id="tx-list" class="tx-list"></div>
+      <p id="tx-empty" class="empty hidden">Ei kirjauksia tälle kuukaudelle.</p>
+    </section>
+
+    <!-- ---------- Yhteenveto ---------- -->
+    <section id="panel-summary" class="panel hidden">
+      <div class="month-nav" data-month-nav>
+        <button type="button" class="btn btn-icon" data-month-prev aria-label="Edellinen kuukausi">‹</button>
+        <span class="month-label" data-month-label></span>
+        <button type="button" class="btn btn-icon" data-month-next aria-label="Seuraava kuukausi">›</button>
+      </div>
+
+      <div class="summary-hero">
+        <span class="muted">Yhteensä</span>
+        <strong id="sum-total">0,00 €</strong>
+        <span id="sum-compare" class="muted"></span>
+        <span id="sum-count" class="muted"></span>
+      </div>
+
+      <div id="sum-rows" class="sum-rows"></div>
+      <p id="sum-empty" class="empty hidden">Ei kuluja tälle kuukaudelle.</p>
+    </section>
+
+    <!-- ---------- Asetukset ---------- -->
+    <section id="panel-settings" class="panel hidden">
+
+      <div class="card">
+        <h2>Kategoriat</h2>
+        <div id="cat-list" class="cat-list"></div>
+        <p id="cat-empty" class="empty hidden">Ei kategorioita. Luo ensimmäinen alta.</p>
+
+        <form id="cat-form" class="cat-form" novalidate>
+          <input type="text" id="cat-name" maxlength="40" placeholder="Uusi kategoria" autocomplete="off">
+          <input type="color" id="cat-color" value="#6366f1" aria-label="Kategorian väri">
+          <button type="submit" class="btn btn-secondary">Lisää</button>
+        </form>
+        <div id="cat-error" class="alert alert-error hidden" role="alert"></div>
+      </div>
+
+      <div class="card">
+        <h2>Vienti</h2>
+        <p class="muted">Excel-tiedosto sisältää kaikki transaktiot sekä kuukausiyhteenvedot.</p>
+        <button type="button" class="btn btn-secondary btn-block" id="btn-export-xlsx">
+          Vie Excel-tiedostoksi (.xlsx)
+        </button>
+      </div>
+
+      <div class="card">
+        <h2>Varmuuskopio</h2>
+        <p class="muted">JSON-varmuuskopio sisältää kategoriat ja transaktiot, ja se voidaan tuoda takaisin.</p>
+        <button type="button" class="btn btn-secondary btn-block" id="btn-export-json">
+          Vie varmuuskopio (.json)
+        </button>
+        <button type="button" class="btn btn-secondary btn-block" id="btn-import-json">
+          Tuo varmuuskopio…
+        </button>
+        <input type="file" id="import-file" accept="application/json,.json" class="hidden">
+      </div>
+
+      <div class="card">
+        <h2>Tunnus</h2>
+        <p class="muted" id="settings-email">&nbsp;</p>
+        <button type="button" class="btn btn-danger-outline btn-block" id="btn-signout">
+          Kirjaudu ulos
+        </button>
+        <p class="muted small" id="settings-version"></p>
+      </div>
+
+    </section>
+
+  </main>
+
+  <nav class="tabbar" id="tabbar">
+    <button type="button" class="tab is-active" data-view="entry">
+      <span class="tab-icon" aria-hidden="true">＋</span><span>Kirjaa</span>
+    </button>
+    <button type="button" class="tab" data-view="transactions">
+      <span class="tab-icon" aria-hidden="true">☰</span><span>Kulut</span>
+    </button>
+    <button type="button" class="tab" data-view="summary">
+      <span class="tab-icon" aria-hidden="true">▦</span><span>Yhteenveto</span>
+    </button>
+    <button type="button" class="tab" data-view="settings">
+      <span class="tab-icon" aria-hidden="true">⚙</span><span>Asetukset</span>
+    </button>
+  </nav>
+</div>
+
+<!-- ============ Modaali & ilmoitukset ============ -->
+<div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-backdrop" data-modal-close></div>
+  <div class="modal-sheet" id="modal-sheet"></div>
+</div>
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
