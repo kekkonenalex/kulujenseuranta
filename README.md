@@ -61,10 +61,11 @@ kulujenseuranta/
 Tarkistettu käyttöönoton yhteydessä: anonyymi luku palauttaa tyhjän listan ja anonyymi
 kirjoitus torjutaan virheellä `401 / 42501 row-level security policy` — eli RLS on voimassa.
 
-**Huom:** Supabasessa uusien tunnusten luonti kannattaa sulkea sen jälkeen kun oma tunnus on
-luotu: *Authentication → Sign In / Providers → Email → Allow new users to sign up* pois päältä.
-Muuten kuka tahansa julkisen URLin löytävä voi luoda tunnuksen projektiin (hän näkee vain
-oman datansa, mutta se kuluttaa ilmaistilin kvoottaa).
+**Rekisteröinti on suljettu:** *Authentication → Sign In / Providers → User Signups →
+Allow new users to sign up* on pois päältä, eli kukaan muu ei voi luoda tunnusta projektiin,
+vaikka löytäisi julkisen URLin. Varmistettu: `/auth/v1/signup` vastaa
+`422 signup_disabled`. Jos joskus tarvitset toisen tunnuksen (esim. kumppanille), kytke
+asetus hetkeksi päälle tai luo käyttäjä hallintapaneelista *Authentication → Users → Add user*.
 
 ### Sovelluksen päivitys jatkossa
 

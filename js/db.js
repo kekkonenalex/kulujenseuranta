@@ -62,6 +62,9 @@ export function toAppError(error) {
   if (/invalid login credentials/i.test(message)) {
     return new AppError('Sähköposti tai salasana ei täsmää.', 'auth');
   }
+  if (/signup.?disabled|signups not allowed/i.test(message)) {
+    return new AppError('Uusien tunnusten luonti on suljettu tässä projektissa. Kirjaudu olemassa olevalla tunnuksella.', 'auth');
+  }
   if (/user already registered|already been registered/i.test(message)) {
     return new AppError('Tälle sähköpostille on jo tunnus. Kirjaudu sisään.', 'auth');
   }
