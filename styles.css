@@ -365,16 +365,37 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 7px; }
 /* ---------- Kategorialista (asetukset) ---------- */
 .cat-list { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1rem; }
 .cat-row {
-  display: flex; align-items: center; gap: .6rem;
-  padding: .6rem .7rem;
+  display: flex; align-items: center; gap: .45rem;
+  padding: .6rem .6rem .6rem .35rem;
   background: var(--bg-3); border: 1px solid var(--line); border-radius: 11px;
 }
 .cat-row .dot { width: 14px; min-width: 14px; height: 14px; border-radius: 50%; }
+
+/* Raahauskahva: touch-action: none VAIN tassa, jotta listan
+   vierittaminen sormella toimii muualla normaalisti. */
+.drag-handle {
+  display: flex; align-items: center; justify-content: center;
+  min-width: 28px; min-height: 44px; margin: -.3rem 0;
+  color: var(--text-dim); font-size: 1.1rem; line-height: 1;
+  cursor: grab; touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.drag-handle:active { cursor: grabbing; color: var(--text); }
+.cat-row.is-dragging {
+  position: relative; z-index: 5;
+  border-color: var(--accent);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .5);
+  opacity: .97;
+}
+body.is-reordering { -webkit-user-select: none; user-select: none; }
+.reorder-hint { margin: -.4rem 0 .9rem; font-size: .78rem; color: var(--text-dim); }
 .cat-row .cat-row-name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cat-row .cat-row-count { font-size: .78rem; color: var(--text-dim); }
+.cat-row .cat-row-count { font-size: .72rem; color: var(--text-dim); white-space: nowrap; }
 .cat-form { display: flex; gap: .5rem; align-items: center; }
 .cat-form input[type="text"] { flex: 1; }
 .cat-form .btn { margin-top: 0; }
+.cat-row .icon-btn { min-width: 34px; }
+
 .icon-btn {
   min-width: 40px; min-height: 40px; padding: 0;
   background: transparent; border: none; color: var(--text-dim);

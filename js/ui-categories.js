@@ -16,11 +16,13 @@ function renderList() {
   const counts = transactionCountByCategory();
 
   show(qs('#cat-empty'), categories.length === 0);
+  show(qs('#cat-reorder-hint'), categories.length > 1);
 
   list.innerHTML = categories.map((cat) => {
     const count = counts.get(cat.id) || 0;
     return `
-      <div class="cat-row">
+      <div class="cat-row" data-cat-id="${escapeHtml(cat.id)}">
+        <span class="drag-handle" data-drag-handle aria-hidden="true">⠿</span>
         <span class="dot" style="background:${escapeHtml(cat.color)}"></span>
         <span class="cat-row-name">${escapeHtml(cat.name)}${cat.archived ? ' <span class="muted small">(arkistoitu)</span>' : ''}</span>
         <span class="cat-row-count">${count} kirjausta</span>
@@ -174,9 +176,138 @@ async function handleDelete(categoryId) {
   }
 }
 
+/* ------------------------------------------------------------
+   Kategorioiden jarjestys raahaamalla
+
+   Pointer events kattaa seka kosketuksen etta hiiren. Raahaus alkaa
+   vain kahvasta: jos koko rivi olisi raahattava, listan vierittaminen
+   sormella tarttuisi vahingossa riviin kiinni. Siksi touch-action:
+   none on vain kahvassa - muualla selain saa vierittaa normaalisti.
+   ------------------------------------------------------------ */
+
+let drag = null;
+
+/** Rivit DOM-jarjestyksessa. */
+function rowElements(list) {
+  return Array.from(list.querySelectorAll('.cat-row'));
+}
+
+function onPointerDown(event) {
+  const handle = event.target.closest('[data-drag-handle]');
+  if (!handle || event.button > 0) return;
+
+  const row = handle.closest('.cat-row');
+  const list = qs('#cat-list');
+  if (!row || !list) return;
+
+  event.preventDefault();
+
+  drag = {
+    row,
+    list,
+    pointerId: event.pointerId,
+    originY: event.clientY,
+    moved: false,
+  };
+
+  // Kuuntelijat ikkunaan, ei kahvaan: insertBefore siirtaa rivin DOM:issa,
+  // jolloin selain voi menettaa pointer capturen ja loput tapahtumat
+  // menisivat ohi kesken raahauksen.
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerUp);
+
+  row.classList.add('is-dragging');
+  document.body.classList.add('is-reordering');
+}
+
+function onPointerMove(event) {
+  if (!drag || event.pointerId !== drag.pointerId) return;
+
+  const delta = event.clientY - drag.originY;
+  if (Math.abs(delta) > 4) drag.moved = true;
+  drag.row.style.transform = `translateY(${delta}px)`;
+
+  const dragRect = drag.row.getBoundingClientRect();
+  const dragMiddle = dragRect.top + dragRect.height / 2;
+
+  for (const sibling of rowElements(drag.list)) {
+    if (sibling === drag.row) continue;
+
+    const rect = sibling.getBoundingClientRect();
+    const siblingMiddle = rect.top + rect.height / 2;
+    const position = sibling.compareDocumentPosition(drag.row);
+    const dragIsAfter = Boolean(position & Node.DOCUMENT_POSITION_FOLLOWING);
+    const dragIsBefore = Boolean(position & Node.DOCUMENT_POSITION_PRECEDING);
+
+    if (dragMiddle < siblingMiddle && dragIsAfter) {
+      drag.list.insertBefore(drag.row, sibling);
+    } else if (dragMiddle > siblingMiddle && dragIsBefore) {
+      drag.list.insertBefore(drag.row, sibling.nextSibling);
+    } else {
+      continue;
+    }
+
+    // Rivi hyppasi uuteen paikkaan: nollataan siirtyma ja otetaan
+    // nykyinen sormen sijainti uudeksi lahtokohdaksi.
+    drag.row.style.transform = '';
+    drag.originY = event.clientY;
+    break;
+  }
+}
+
+function onPointerUp(event) {
+  if (!drag || (event && event.pointerId !== drag.pointerId)) return;
+
+  const { row, list, moved } = drag;
+  drag = null;
+
+  window.removeEventListener('pointermove', onPointerMove);
+  window.removeEventListener('pointerup', onPointerUp);
+  window.removeEventListener('pointercancel', onPointerUp);
+
+  row.style.transform = '';
+  row.classList.remove('is-dragging');
+  document.body.classList.remove('is-reordering');
+
+  if (moved) saveOrder(rowElements(list).map((element) => element.dataset.catId));
+}
+
+/**
+ * Tallentaa uuden jarjestyksen. Paivitetaan vain ne rivit joiden
+ * sort_order oikeasti muuttui - yksi siirto koskee harvoin kaikkia.
+ * Nakyma paivitetaan heti ja palautetaan jos tallennus epaonnistuu.
+ */
+async function saveOrder(orderedIds) {
+  const updates = [];
+  orderedIds.forEach((id, index) => {
+    const category = state.categories.find((c) => c.id === id);
+    const sortOrder = (index + 1) * 10;
+    if (category && category.sort_order !== sortOrder) updates.push({ id, sortOrder });
+  });
+  if (updates.length === 0) return;
+
+  const previous = state.categories;
+  setState({
+    categories: state.categories.map((category) => {
+      const update = updates.find((u) => u.id === category.id);
+      return update ? { ...category, sort_order: update.sortOrder } : category;
+    }),
+  });
+
+  try {
+    await Promise.all(updates.map((u) => db.updateCategory(u.id, { sortOrder: u.sortOrder })));
+    toast('Järjestys tallennettu', 'ok');
+  } catch (err) {
+    setState({ categories: previous });
+    toast(err.message, 'error');
+  }
+}
+
 export function initCategoriesView() {
   qs('#cat-form').addEventListener('submit', handleAdd);
   qs('#cat-color').value = randomColor();
+  qs('#cat-list').addEventListener('pointerdown', onPointerDown);
   qs('#cat-list').addEventListener('click', (event) => {
     const editButton = event.target.closest('[data-edit]');
     if (editButton) { openEditModal(editButton.dataset.edit); return; }

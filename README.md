@@ -7,7 +7,7 @@ puhelimella heti transaktion jälkeen, kolmella kosketuksella.
 - **Kulut** – kuukauden kirjaukset päivittäin, muokkaus ja poisto
 - **Yhteenveto** – kulut kategorioittain, kokonaissumma, vertailu edelliseen kuukauteen
 - **Budjetti** – kuukausibudjetti kategorioittain, seuranta ja ennuste
-- **Asetukset** – kategorioiden hallinta, Excel-vienti, JSON-varmuuskopio
+- **Asetukset** – kategorioiden hallinta ja järjestys, Excel-vienti, JSON-varmuuskopio
 
 ## Tekniikka
 
@@ -149,6 +149,23 @@ HTTPS on välttämätön: ilman sitä service worker ja PWA-asennus eivät toimi
 - **Android (Chrome):** avaa osoite → valikko → *Asenna sovellus*
 
 Kirjaudu kerran, ja sessio säilyy – sovellus avautuu suoraan kirjausnäkymään.
+
+## Kategorioiden järjestys
+
+Asetuksissa kategoriat järjestetään raahaamalla ⠿-kahvasta. Järjestys ohjaa kirjausnäkymän
+pudotusvalikkoa, joten eniten käytetyt kannattaa nostaa kärkeen.
+
+Toteutus käyttää Pointer Events -rajapintaa, joka kattaa sekä kosketuksen että hiiren.
+Kaksi yksityiskohtaa ratkaisee toimivuuden puhelimessa:
+
+- `touch-action: none` on **vain kahvassa**. Jos se olisi koko rivillä, listan vierittäminen
+  sormella tarttuisi vahingossa riviin kiinni.
+- Raahauksen kuuntelijat ovat `window`-tasolla, eivät kahvassa. Rivin siirto DOM:issa
+  (`insertBefore`) voi saada selaimen menettämään pointer capturen, jolloin kahvaan sidotut
+  kuuntelijat lakkaisivat saamasta tapahtumia kesken raahauksen.
+
+Tallennus päivittää vain ne rivit joiden `sort_order` oikeasti muuttui. Näkymä päivittyy heti
+ja palautuu ennalleen jos tallennus epäonnistuu.
 
 ## Budjetit
 
