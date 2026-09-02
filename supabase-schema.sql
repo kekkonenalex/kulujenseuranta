@@ -230,6 +230,15 @@ create policy device_tokens_delete on public.device_tokens
 --  sille kayttajalle jonka tunniste tasmaa. search_path sisaltaa
 --  extensions-skeeman, koska pgcrypto (digest) asuu siella.
 -- ------------------------------------------------------------
+-- Rahasumma valmiiksi muotoiltuna ilmoitusta varten.
+create or replace function public.fmt_eur(cents integer)
+returns text
+language sql
+immutable
+as $fn$
+  select replace(to_char(cents / 100.0, 'FM9999999990.00'), '.', ',') || ' €';
+$fn$;
+
 create or replace function public.log_expense(
   p_token       text,
   p_amount      numeric,
@@ -251,21 +260,26 @@ declare
   v_month    text;
   v_spent    integer;
   v_budget   integer;
+  v_left     integer;
+  v_message  text;
 begin
   if p_token is null or length(p_token) < 20 then
-    return jsonb_build_object('ok', false, 'error', 'Virheellinen laitetunniste');
+    return jsonb_build_object('ok', false, 'error', 'Virheellinen laitetunniste',
+      'message', 'Virhe: laitetunniste puuttuu tai on liian lyhyt');
   end if;
 
   v_hash := encode(digest(p_token, 'sha256'), 'hex');
 
   select * into v_token from public.device_tokens where token_hash = v_hash;
   if not found then
-    return jsonb_build_object('ok', false, 'error', 'Tuntematon laitetunniste');
+    return jsonb_build_object('ok', false, 'error', 'Tuntematon laitetunniste',
+      'message', 'Virhe: tuntematon laitetunniste — luo uusi sovelluksen asetuksista');
   end if;
 
   v_cents := round(p_amount * 100);
   if v_cents is null or v_cents <= 0 or v_cents > 100000000 then
-    return jsonb_build_object('ok', false, 'error', 'Summan pitää olla suurempi kuin nolla');
+    return jsonb_build_object('ok', false, 'error', 'Summan pitää olla suurempi kuin nolla',
+      'message', 'Virhe: summan pitää olla suurempi kuin nolla');
   end if;
 
   v_date  := coalesce(p_occurred_on, current_date);
@@ -279,7 +293,8 @@ begin
 
   if not found then
     return jsonb_build_object('ok', false,
-      'error', format('Kategoriaa "%s" ei löydy', coalesce(p_category, '')));
+      'error', format('Kategoriaa "%s" ei löydy', coalesce(p_category, '')),
+      'message', format('Virhe: kategoriaa "%s" ei löydy', coalesce(p_category, '')));
   end if;
 
   insert into public.transactions (user_id, category_id, amount_cents, occurred_on, description)
@@ -299,7 +314,6 @@ begin
     and category_id = v_category.id
     and to_char(occurred_on, 'YYYY-MM') = v_month;
 
-  -- Kuukausiylikirjoitus voittaa perusbudjetin, kuten sovelluksessakin.
   select amount_cents into v_budget
   from public.budgets
   where category_id = v_category.id and year_month = v_month;
@@ -309,8 +323,21 @@ begin
     where category_id = v_category.id and year_month is null;
   end if;
 
+  -- Valmis viesti pikakomennon ilmoitukseen: silloin pikakomennossa ei
+  -- tarvita If-haaraa lainkaan, vaan se nayttaa taman sellaisenaan.
+  v_message := format('Kirjattu %s · %s', public.fmt_eur(v_cents), v_category.name);
+  if v_budget is not null then
+    v_left := v_budget - v_spent;
+    if v_left >= 0 then
+      v_message := v_message || format(' — budjetista jäljellä %s', public.fmt_eur(v_left));
+    else
+      v_message := v_message || format(' — budjetti ylittynyt %s', public.fmt_eur(-v_left));
+    end if;
+  end if;
+
   return jsonb_build_object(
     'ok', true,
+    'message', v_message,
     'category', v_category.name,
     'amount_cents', v_cents,
     'occurred_on', v_date,
@@ -321,9 +348,6 @@ begin
 end;
 $fn$;
 
--- ------------------------------------------------------------
---  Kategorialista pikakomennon valikkoa varten.
--- ------------------------------------------------------------
 create or replace function public.list_expense_categories(p_token text)
 returns jsonb
 language plpgsql
@@ -336,14 +360,16 @@ declare
   v_names jsonb;
 begin
   if p_token is null or length(p_token) < 20 then
-    return jsonb_build_object('ok', false, 'error', 'Virheellinen laitetunniste');
+    return jsonb_build_object('ok', false, 'categories', '[]'::jsonb,
+      'message', 'Virhe: laitetunniste puuttuu tai on liian lyhyt');
   end if;
 
   v_hash := encode(digest(p_token, 'sha256'), 'hex');
 
   select * into v_token from public.device_tokens where token_hash = v_hash;
   if not found then
-    return jsonb_build_object('ok', false, 'error', 'Tuntematon laitetunniste');
+    return jsonb_build_object('ok', false, 'categories', '[]'::jsonb,
+      'message', 'Virhe: tuntematon laitetunniste');
   end if;
 
   select coalesce(jsonb_agg(name order by sort_order, created_at), '[]'::jsonb)
@@ -351,12 +377,13 @@ begin
   from public.categories
   where user_id = v_token.user_id and not archived;
 
-  return jsonb_build_object('ok', true, 'categories', v_names);
+  return jsonb_build_object('ok', true, 'categories', v_names, 'message', 'ok');
 end;
 $fn$;
 
 grant execute on function public.log_expense(text, numeric, text, text, date) to anon, authenticated;
 grant execute on function public.list_expense_categories(text) to anon, authenticated;
+grant execute on function public.fmt_eur(integer) to anon, authenticated;
 
 -- ------------------------------------------------------------
 --  VALMIS. Ei valmiita kategorioita - luot ne itse sovelluksessa.

@@ -76,28 +76,37 @@ Nimi: `Kategoria`. Arvo: *Valittu kohde*.
 - URL: `https://wqibkufakgdmzcovmdos.supabase.co/rest/v1/rpc/log_expense`
 - Menetelmä: **POST**
 - Otsakkeet: samat kuin kohdassa 5
-- Pyynnön runko: **JSON**
-  - `p_token` (teksti) = `Tunniste`
-  - `p_amount` (luku) = `Summa`
-  - `p_category` (teksti) = `Kategoria`
+- Pyynnön runko: **JSON**, kolme kenttää:
+
+| Kenttä | Tyyppi | Arvo |
+|---|---|---|
+| `p_token` | Teksti (Text) | muuttuja `Tunniste` |
+| `p_amount` | **Luku (Number)** | muuttuja `Summa` |
+| `p_category` | Teksti (Text) | muuttuja `Kategoria` |
+
+Kentän tyyppi valitaan napauttamalla kentän arvon oikealla puolella olevaa tyyppivalitsinta.
+`p_amount` **pitää** olla tyyppiä Luku — tekstinä lähetetty `24,90` kaatuu palvelimella,
+koska desimaalierotin on pilkku.
 
 **10. Hae sanakirjan arvo** (Get Dictionary Value)
-Avain `ok` edellisen toiminnon tuloksesta.
+Avain: `message`, sanakirja: kohdan 9 *Contents of URL*.
 
-**11. Jos** (If) — *Ehto: on tosi*
-- **Jos tosi:** *Näytä ilmoitus* (Show Notification), teksti esim.
-  `Kirjattu ✓` ja mukaan muuttujat `Summa` ja `Kategoria`
-- **Muuten:** *Näytä ilmoitus*, tekstinä *Hae sanakirjan arvo* avaimella `error`
-  kohdan 9 tuloksesta
+**11. Näytä ilmoitus** (Show Notification)
+Sisältö: edellisen toiminnon tulos (*Dictionary Value*).
 
-Tallenna.
+Tallenna. Ei If-haaraa: palvelin palauttaa valmiin viestin sekä onnistumisesta että
+virheestä, esimerkiksi:
 
-### Halutessasi: jäljellä oleva budjetti ilmoitukseen
+- `Kirjattu 24,90 € · Ruokakauppa — budjetista jäljellä 305,20 €`
+- `Kirjattu 60,00 € · Liikenne — budjetti ylittynyt 3,00 €`
+- `Virhe: tuntematon laitetunniste — luo uusi sovelluksen asetuksista`
 
-Vastaus sisältää myös kentän `remaining_cents` (budjettia jäljellä sentteinä, tyhjä jos
-kategorialla ei ole budjettia) sekä `month_spent_cents` (kuukauden kulutus tässä kategoriassa).
-Voit hakea sen *Hae sanakirjan arvo* -toiminnolla ja lisätä ilmoitukseen — jaa sadalla, niin
-saat eurot.
+### Vastauksen muut kentät
+
+Ilmoitukseen riittää `message`, mutta vastaus sisältää myös erikseen kentät `ok` (tosi/epätosi),
+`category`, `amount_cents`, `month_spent_cents` (kuukauden kulutus tässä kategoriassa),
+`budget_cents` ja `remaining_cents`. Nämä ovat sentteinä, eli jaa sadalla jos rakennat
+oman viestin.
 
 ## Vaihe 3: testaa
 
@@ -130,9 +139,9 @@ Kulujenseuranta-sovellus ei avaudu missään vaiheessa.
 
 ## Vielä nopeampi: yksi pikakomento per kategoria
 
-Kopioi `Kirjaa kulu` ja poista kopiosta kohdat 5–8 (kategorian haku ja valinta). Kirjoita
-kohdan 9 `p_category`-kenttään kategorian nimi suoraan, esim. `Ruokakauppa`, ja nimeä
-pikakomento `Ruokakauppa`. Toista muille usein käyttämillesi kategorioille.
+Kopioi `Kirjaa kulu` ja poista kopiosta kohdat 5–8 (kategorian haku ja valinta). Vaihda
+kohdan 9 `p_category`-kentän tyypiksi Teksti ja kirjoita kategorian nimi suoraan, esim.
+`Ruokakauppa`, ja nimeä pikakomento `Ruokakauppa`. Toista muille usein käyttämillesi kategorioille.
 
 Laita nämä keskikokoiseen tai isoon widgetiin: napautat kategoriaa, kirjoitat summan, valmis.
 Kategorian nimen pitää täsmätä sovelluksen kategoriaan (isot ja pienet kirjaimet eivät haittaa).
