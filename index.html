@@ -222,6 +222,25 @@
       </div>
 
       <div class="card">
+        <h2>Pikakomento (iPhone)</h2>
+        <p class="muted">
+          Laitetunniste antaa iPhonen pikakomennon kirjata kuluja avaamatta sovellusta.
+          Tunnisteella voi vain lisätä kuluja — ei lukea eikä poistaa mitään.
+          <a id="shortcut-help" href="https://github.com/kekkonenalex/kulujenseuranta/blob/main/PIKAKOMENTO.md" target="_blank" rel="noopener">Ohje</a>
+        </p>
+
+        <div id="token-list" class="token-list"></div>
+        <p id="token-empty" class="empty hidden">Ei laitetunnisteita.</p>
+
+        <div class="cat-form">
+          <input type="text" id="token-name" maxlength="30" placeholder="Laitteen nimi (esim. iPhone)"
+                 autocomplete="off">
+          <button type="button" class="btn btn-secondary" id="btn-create-token">Luo</button>
+        </div>
+        <div id="token-error" class="alert alert-error hidden" role="alert"></div>
+      </div>
+
+      <div class="card">
         <h2>Tunnus</h2>
         <p class="muted" id="settings-email">&nbsp;</p>
         <button type="button" class="btn btn-danger-outline btn-block" id="btn-signout">

@@ -303,6 +303,34 @@ export async function deleteBudget(id) {
 }
 
 /* ------------------------------------------------------------
+   Laitetunnisteet (iPhonen pikakomento)
+
+   Tietokantaan menee vain tunnisteen SHA-256-tiiviste. Itse tunniste
+   arvotaan selaimessa, naytetaan kerran ja unohdetaan.
+   ------------------------------------------------------------ */
+
+export async function fetchDeviceTokens() {
+  const data = await run(getClient()
+    .from('device_tokens')
+    .select('id, name, created_at, last_used_at')
+    .order('created_at', { ascending: false }));
+  return data || [];
+}
+
+export async function createDeviceToken({ name, tokenHash }) {
+  const userId = await requireUserId();
+  return run(getClient()
+    .from('device_tokens')
+    .insert({ user_id: userId, name: String(name).trim() || 'iPhone', token_hash: tokenHash })
+    .select('id, name, created_at, last_used_at')
+    .single());
+}
+
+export async function deleteDeviceToken(id) {
+  await run(getClient().from('device_tokens').delete().eq('id', id));
+}
+
+/* ------------------------------------------------------------
    Varmuuskopion tuonti
    ------------------------------------------------------------ */
 

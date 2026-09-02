@@ -17,6 +17,7 @@ import { initTransactionsView, renderTransactionsView } from './ui-transactions.
 import { initSummaryView, renderSummaryView } from './ui-summary.js';
 import { initBudgetView, renderBudgetView } from './ui-budget.js';
 import { initCategoriesView, renderCategoriesView } from './ui-categories.js';
+import { initTokensView, renderTokensView } from './ui-tokens.js';
 import { initExportView } from './export.js';
 
 const VIEWS = {
@@ -78,6 +79,7 @@ function renderAll() {
   renderSummaryView();
   renderBudgetView();
   renderCategoriesView();
+  renderTokensView();
 }
 
 /* ------------------------------------------------------------
@@ -85,13 +87,14 @@ function renderAll() {
    ------------------------------------------------------------ */
 
 async function loadData() {
-  const [categories, transactions, budgets] = await Promise.all([
+  const [categories, transactions, budgets, deviceTokens] = await Promise.all([
     db.fetchCategories(),
     db.fetchTransactions(),
     db.fetchBudgets(),
+    db.fetchDeviceTokens(),
   ]);
   lastLoadedAt = Date.now();
-  setState({ categories, transactions, budgets });
+  setState({ categories, transactions, budgets, deviceTokens });
 }
 
 async function loadDataSafely() {
@@ -118,6 +121,7 @@ async function startApp(session) {
     initSummaryView();
     initBudgetView();
     initCategoriesView();
+    initTokensView();
     initExportView({ reloadData: loadData });
     viewsInitialised = true;
   }
@@ -134,7 +138,9 @@ async function handleSignOut() {
     console.warn('Uloskirjautuminen palvelimelta ei onnistunut:', err.message);
   }
   closeModal();
-  setState({ user: null, categories: [], transactions: [], budgets: [], view: 'entry' });
+  setState({
+    user: null, categories: [], transactions: [], budgets: [], deviceTokens: [], view: 'entry',
+  });
   resetAuthView();
   showScreen('auth');
 }
@@ -216,7 +222,7 @@ async function boot() {
 
     db.onAuthChange((event, newSession) => {
       if (event === 'SIGNED_OUT') {
-        setState({ user: null, categories: [], transactions: [], budgets: [] });
+        setState({ user: null, categories: [], transactions: [], budgets: [], deviceTokens: [] });
         resetAuthView();
         showScreen('auth');
         return;

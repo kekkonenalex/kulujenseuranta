@@ -31,7 +31,8 @@ kulujenseuranta/
 ├── styles.css                  tumma teema, mobile first
 ├── manifest.webmanifest         PWA-määritys
 ├── sw.js                       service worker (sovelluksen kuoren cachetus)
-├── supabase-schema.sql         tietokannan taulut + RLS-politiikat
+├── supabase-schema.sql         tietokannan taulut, RLS-politiikat ja pikakomentofunktiot
+├── PIKAKOMENTO.md              ohje iPhonen pikakomennon rakentamiseen
 ├── icons/                      ikonit (SVG + PNG 180/192/512)
 └── js/
     ├── config.js               SUPABASE_URL + SUPABASE_ANON_KEY  <-- täytä tämä
@@ -46,6 +47,7 @@ kulujenseuranta/
     ├── ui-transactions.js      kirjauslista + muokkaus
     ├── ui-summary.js           kuukausiyhteenveto
     ├── ui-budget.js            budjetit ja seuranta
+    ├── ui-tokens.js            laitetunnisteet pikakomennolle
     └── ui-categories.js        kategorioiden hallinta
 ```
 
@@ -188,6 +190,27 @@ Asetukset → *Vie Excel-tiedostoksi* luo `.xlsx`-tiedoston kolmella välilehdel
 Summat ovat oikeita lukuja euromuotoilulla ja päivämäärät oikeita päivämääriä, joten
 Excelin pivot-taulut ja kaaviot toimivat suoraan. Tiedosto on tarkoitettu analyysiin,
 **ei varmuuskopioksi** – sitä ei voi tuoda takaisin sovellukseen.
+
+## Kirjaus iPhonen pikakomennolla
+
+Asetukset → *Pikakomento (iPhone)* luo **laitetunnisteen**, jolla iPhonen pikakomento voi
+kirjata kuluja avaamatta sovellusta — kotinäytön widgetistä, Ohjauskeskuksesta, koputtamalla
+takakantta tai Sirillä. Vaiheittainen ohje: [PIKAKOMENTO.md](PIKAKOMENTO.md).
+
+Tekninen puoli: pikakomento kutsuu kahta `security definer` -funktiota anon-avaimella ja
+laitetunnisteella.
+
+| Funktio | Tekee |
+|---|---|
+| `log_expense(p_token, p_amount, p_category, p_description, p_occurred_on)` | Kirjaa kulun ja palauttaa kuukauden toteuman sekä budjetin jäljellä olevan osan |
+| `list_expense_categories(p_token)` | Palauttaa kategoriat pikakomennon valikkoa varten |
+
+Tietokantaan tallennetaan vain tunnisteen SHA-256-tiiviste (`device_tokens.token_hash`);
+tunniste arvotaan selaimessa ja näytetään kerran. Tunnisteella voi vain lisätä kuluja — ei
+lukea, muokata tai poistaa mitään. Poisto asetuksista katkaisee pääsyn välittömästi.
+
+Pikakomennot eivät voi käyttää sovelluksen kirjautumista, koska Supabasen käyttöoikeustunnus
+vanhenee tunnissa ja päivitystunnus kiertää jokaisella käytöllä.
 
 ## Varmuuskopio
 

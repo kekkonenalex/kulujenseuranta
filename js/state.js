@@ -10,6 +10,7 @@ export const state = {
   categories: [],      // { id, name, color, sort_order, archived }
   transactions: [],     // { id, category_id, amount_cents, occurred_on, description }
   budgets: [],          // { id, category_id, year_month, amount_cents }
+  deviceTokens: [],     // { id, name, created_at, last_used_at }
   month: currentMonth(), // valittu kuukausi 'YYYY-MM' (Kulut + Yhteenveto)
   view: 'entry',
   online: navigator.onLine,

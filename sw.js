@@ -6,7 +6,7 @@
    tuoretta ja v1 vaatii verkon tallentamiseen.
    ============================================================ */
 
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const CACHE = `kulut-shell-v${VERSION}`;
 
 const SHELL = [
@@ -31,6 +31,7 @@ const SHELL = [
   './js/ui-common.js',
   './js/ui-entry.js',
   './js/ui-summary.js',
+  './js/ui-tokens.js',
   './js/ui-transactions.js',
 ];
 

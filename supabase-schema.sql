@@ -187,6 +187,177 @@ create policy budgets_update on public.budgets
 create policy budgets_delete on public.budgets
   for delete using (auth.uid() = user_id);
 
+-- ============================================================
+--  LAITETUNNISTEET JA PIKAKOMENTO-RAJAPINTA (iPhone Shortcuts)
+--
+--  Pikakomento ei voi kirjautua kuten sovellus: kayttooikeustunnus
+--  vanhenee tunnissa ja paivitystunnus kiertaa. Siksi puhelimelle
+--  annetaan oma pitkaikainen laitetunniste.
+--
+--  Tietokantaan tallennetaan vain tunnisteen SHA-256-tiiviste, ei
+--  tunnistetta itseaan. Tunnisteella voi VAIN kirjata kulun ja
+--  hakea kategorialistan - ei lukea kuluja eika poistaa mitaan.
+-- ============================================================
+
+create table if not exists public.device_tokens (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references auth.users (id) on delete cascade,
+  name          text not null default 'iPhone',
+  token_hash    text not null unique,
+  created_at    timestamptz not null default now(),
+  last_used_at  timestamptz
+);
+
+create index if not exists device_tokens_user_idx on public.device_tokens (user_id);
+
+alter table public.device_tokens enable row level security;
+
+drop policy if exists device_tokens_select on public.device_tokens;
+drop policy if exists device_tokens_insert on public.device_tokens;
+drop policy if exists device_tokens_delete on public.device_tokens;
+
+create policy device_tokens_select on public.device_tokens
+  for select using (auth.uid() = user_id);
+create policy device_tokens_insert on public.device_tokens
+  for insert with check (auth.uid() = user_id);
+create policy device_tokens_delete on public.device_tokens
+  for delete using (auth.uid() = user_id);
+
+-- ------------------------------------------------------------
+--  Kulun kirjaus laitetunnisteella.
+--
+--  security definer: funktio ohittaa RLS:n, mutta kirjoittaa vain
+--  sille kayttajalle jonka tunniste tasmaa. search_path sisaltaa
+--  extensions-skeeman, koska pgcrypto (digest) asuu siella.
+-- ------------------------------------------------------------
+create or replace function public.log_expense(
+  p_token       text,
+  p_amount      numeric,
+  p_category    text,
+  p_description text default null,
+  p_occurred_on date default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $fn$
+declare
+  v_hash     text;
+  v_token    public.device_tokens%rowtype;
+  v_category public.categories%rowtype;
+  v_cents    integer;
+  v_date     date;
+  v_month    text;
+  v_spent    integer;
+  v_budget   integer;
+begin
+  if p_token is null or length(p_token) < 20 then
+    return jsonb_build_object('ok', false, 'error', 'Virheellinen laitetunniste');
+  end if;
+
+  v_hash := encode(digest(p_token, 'sha256'), 'hex');
+
+  select * into v_token from public.device_tokens where token_hash = v_hash;
+  if not found then
+    return jsonb_build_object('ok', false, 'error', 'Tuntematon laitetunniste');
+  end if;
+
+  v_cents := round(p_amount * 100);
+  if v_cents is null or v_cents <= 0 or v_cents > 100000000 then
+    return jsonb_build_object('ok', false, 'error', 'Summan pitää olla suurempi kuin nolla');
+  end if;
+
+  v_date  := coalesce(p_occurred_on, current_date);
+  v_month := to_char(v_date, 'YYYY-MM');
+
+  select * into v_category
+  from public.categories
+  where user_id = v_token.user_id
+    and lower(btrim(name)) = lower(btrim(coalesce(p_category, '')))
+    and not archived;
+
+  if not found then
+    return jsonb_build_object('ok', false,
+      'error', format('Kategoriaa "%s" ei löydy', coalesce(p_category, '')));
+  end if;
+
+  insert into public.transactions (user_id, category_id, amount_cents, occurred_on, description)
+  values (
+    v_token.user_id,
+    v_category.id,
+    v_cents,
+    v_date,
+    nullif(btrim(coalesce(p_description, '')), '')
+  );
+
+  update public.device_tokens set last_used_at = now() where id = v_token.id;
+
+  select coalesce(sum(amount_cents), 0) into v_spent
+  from public.transactions
+  where user_id = v_token.user_id
+    and category_id = v_category.id
+    and to_char(occurred_on, 'YYYY-MM') = v_month;
+
+  -- Kuukausiylikirjoitus voittaa perusbudjetin, kuten sovelluksessakin.
+  select amount_cents into v_budget
+  from public.budgets
+  where category_id = v_category.id and year_month = v_month;
+  if v_budget is null then
+    select amount_cents into v_budget
+    from public.budgets
+    where category_id = v_category.id and year_month is null;
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'category', v_category.name,
+    'amount_cents', v_cents,
+    'occurred_on', v_date,
+    'month_spent_cents', v_spent,
+    'budget_cents', v_budget,
+    'remaining_cents', case when v_budget is null then null else v_budget - v_spent end
+  );
+end;
+$fn$;
+
+-- ------------------------------------------------------------
+--  Kategorialista pikakomennon valikkoa varten.
+-- ------------------------------------------------------------
+create or replace function public.list_expense_categories(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $fn$
+declare
+  v_hash  text;
+  v_token public.device_tokens%rowtype;
+  v_names jsonb;
+begin
+  if p_token is null or length(p_token) < 20 then
+    return jsonb_build_object('ok', false, 'error', 'Virheellinen laitetunniste');
+  end if;
+
+  v_hash := encode(digest(p_token, 'sha256'), 'hex');
+
+  select * into v_token from public.device_tokens where token_hash = v_hash;
+  if not found then
+    return jsonb_build_object('ok', false, 'error', 'Tuntematon laitetunniste');
+  end if;
+
+  select coalesce(jsonb_agg(name order by sort_order, created_at), '[]'::jsonb)
+  into v_names
+  from public.categories
+  where user_id = v_token.user_id and not archived;
+
+  return jsonb_build_object('ok', true, 'categories', v_names);
+end;
+$fn$;
+
+grant execute on function public.log_expense(text, numeric, text, text, date) to anon, authenticated;
+grant execute on function public.list_expense_categories(text) to anon, authenticated;
+
 -- ------------------------------------------------------------
 --  VALMIS. Ei valmiita kategorioita - luot ne itse sovelluksessa.
 -- ------------------------------------------------------------
