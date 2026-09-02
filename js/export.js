@@ -7,7 +7,9 @@
 
 import * as db from './db.js';
 import { APP_VERSION } from './config.js';
-import { state, setState, categoryById, summaryFor, monthsWithData } from './state.js';
+import {
+  state, categoryById, summaryFor, monthsWithData, budgetCentsFor, budgetSummaryFor,
+} from './state.js';
 import { centsToEuros, todayISO, monthLabel } from './format.js';
 import {
   qs, toast, setBusy, downloadBlob, confirmModal,
@@ -86,33 +88,72 @@ function buildTransactionsSheet(XLSX) {
 }
 
 function buildMonthlySheet(XLSX) {
-  const data = [['Kuukausi', 'Kategoria', 'Summa (€)', 'Osuus kuukaudesta', 'Kirjauksia']];
+  const data = [[
+    'Kuukausi', 'Kategoria', 'Summa (€)', 'Budjetti (€)', 'Erotus (€)',
+    'Osuus kuukaudesta', 'Kirjauksia',
+  ]];
+
   for (const month of monthsWithData().slice().reverse()) {
     const summary = summaryFor(month);
     if (summary.count === 0) continue;
+
     for (const row of summary.rows) {
-      data.push([month, row.name, centsToEuros(row.cents), row.share / 100, row.count]);
+      const budgetCents = budgetCentsFor(row.categoryId, month);
+      data.push([
+        month,
+        row.name,
+        centsToEuros(row.cents),
+        budgetCents === null ? '' : centsToEuros(budgetCents),
+        budgetCents === null ? '' : centsToEuros(budgetCents - row.cents),
+        row.share / 100,
+        row.count,
+      ]);
     }
-    data.push([month, 'YHTEENSÄ', centsToEuros(summary.total), 1, summary.count]);
+
+    const budgetTotal = budgetSummaryFor(month).totalBudget;
+    data.push([
+      month,
+      'YHTEENSÄ',
+      centsToEuros(summary.total),
+      budgetTotal ? centsToEuros(budgetTotal) : '',
+      budgetTotal ? centsToEuros(budgetTotal - summary.total) : '',
+      1,
+      summary.count,
+    ]);
   }
 
   const sheet = XLSX.utils.aoa_to_sheet(data);
-  sheet['!cols'] = [{ wch: 10 }, { wch: 24 }, { wch: 13 }, { wch: 18 }, { wch: 11 }];
+  sheet['!cols'] = [
+    { wch: 10 }, { wch: 24 }, { wch: 13 }, { wch: 13 }, { wch: 13 },
+    { wch: 18 }, { wch: 11 },
+  ];
   sheet['!freeze'] = { xSplit: 0, ySplit: 1 };
-  applyFormats(XLSX, sheet, { 2: EUR_FORMAT, 3: PCT_FORMAT });
+  applyFormats(XLSX, sheet, { 2: EUR_FORMAT, 3: EUR_FORMAT, 4: EUR_FORMAT, 5: PCT_FORMAT });
   return sheet;
 }
 
 function buildTotalsSheet(XLSX) {
-  const data = [['Kuukausi', 'Kuukausi (nimi)', 'Kulut yhteensä (€)', 'Kirjauksia']];
+  const data = [[
+    'Kuukausi', 'Kuukausi (nimi)', 'Kulut yhteensä (€)', 'Budjetti (€)', 'Erotus (€)', 'Kirjauksia',
+  ]];
+
   for (const month of monthsWithData().slice().reverse()) {
     const summary = summaryFor(month);
     if (summary.count === 0) continue;
-    data.push([month, monthLabel(month), centsToEuros(summary.total), summary.count]);
+    const budgetTotal = budgetSummaryFor(month).totalBudget;
+    data.push([
+      month,
+      monthLabel(month),
+      centsToEuros(summary.total),
+      budgetTotal ? centsToEuros(budgetTotal) : '',
+      budgetTotal ? centsToEuros(budgetTotal - summary.total) : '',
+      summary.count,
+    ]);
   }
+
   const sheet = XLSX.utils.aoa_to_sheet(data);
-  sheet['!cols'] = [{ wch: 10 }, { wch: 18 }, { wch: 20 }, { wch: 11 }];
-  applyFormats(XLSX, sheet, { 2: EUR_FORMAT });
+  sheet['!cols'] = [{ wch: 10 }, { wch: 18 }, { wch: 20 }, { wch: 13 }, { wch: 13 }, { wch: 11 }];
+  applyFormats(XLSX, sheet, { 2: EUR_FORMAT, 3: EUR_FORMAT, 4: EUR_FORMAT });
   return sheet;
 }
 
@@ -162,6 +203,12 @@ function exportJson() {
       occurred_on: t.occurred_on,
       description: t.description || null,
     })),
+    budgets: state.budgets.map((b) => ({
+      id: b.id,
+      category_id: b.category_id,
+      year_month: b.year_month || null,
+      amount_cents: b.amount_cents,
+    })),
   };
 
   downloadBlob(
@@ -187,7 +234,8 @@ async function importJson(file, reloadData) {
 
   const confirmed = await confirmModal({
     title: 'Tuodaanko varmuuskopio?',
-    body: `Tiedostossa on ${payload.categories.length} kategoriaa ja ${payload.transactions.length} kirjausta. `
+    body: `Tiedostossa on ${payload.categories.length} kategoriaa, ${payload.transactions.length} kirjausta `
+      + `ja ${(payload.budgets || []).length} budjettia. `
       + 'Nykyistä dataa ei poisteta: samannimiset kategoriat yhdistetään ja kirjaukset lisätään. '
       + 'Saman varmuuskopion tuominen kahdesti tuo kirjaukset kahteen kertaan.',
     confirmLabel: 'Tuo',
@@ -199,7 +247,11 @@ async function importJson(file, reloadData) {
     const result = await db.importBackup(payload);
     await reloadData();
     const skippedNote = result.skipped ? `, ohitettu ${result.skipped}` : '';
-    toast(`Tuotu ${result.inserted} kirjausta ja ${result.createdCategories} kategoriaa${skippedNote}`, 'ok');
+    const budgetNote = result.budgetsAdded ? `, ${result.budgetsAdded} budjettia` : '';
+    toast(
+      `Tuotu ${result.inserted} kirjausta ja ${result.createdCategories} kategoriaa${budgetNote}${skippedNote}`,
+      'ok',
+    );
   } catch (err) {
     toast(err.message, 'error');
   }

@@ -152,6 +152,39 @@
       <p id="sum-empty" class="empty hidden">Ei kuluja tälle kuukaudelle.</p>
     </section>
 
+    <!-- ---------- Budjetti ---------- -->
+    <section id="panel-budget" class="panel hidden">
+      <div class="month-nav" data-month-nav>
+        <button type="button" class="btn btn-icon" data-month-prev aria-label="Edellinen kuukausi">‹</button>
+        <span class="month-label" data-month-label></span>
+        <button type="button" class="btn btn-icon" data-month-next aria-label="Seuraava kuukausi">›</button>
+      </div>
+
+      <div class="budget-hero">
+        <div class="budget-hero-top">
+          <span class="muted">Käytetty</span>
+          <strong id="budget-total-spent">0,00 €</strong>
+        </div>
+        <div class="bar bar-lg" id="budget-total-track">
+          <div class="bar-fill" id="budget-total-bar"></div>
+        </div>
+        <div class="sum-meta">
+          <span id="budget-total-budget">Ei budjetteja</span>
+          <span id="budget-total-left" class="budget-left"></span>
+        </div>
+        <p id="budget-forecast" class="small muted hidden"></p>
+        <p id="budget-unbudgeted" class="small muted hidden"></p>
+      </div>
+
+      <div id="budget-rows" class="sum-rows"></div>
+      <div id="budget-unset" class="hidden"></div>
+      <p id="budget-empty" class="empty hidden">
+        Ei kategorioita vielä. Luo kategoriat
+        <button type="button" class="btn btn-link btn-tiny" data-goto="settings">Asetuksista</button>,
+        niin voit asettaa niille budjetit.
+      </p>
+    </section>
+
     <!-- ---------- Asetukset ---------- -->
     <section id="panel-settings" class="panel hidden">
 
@@ -210,6 +243,9 @@
     </button>
     <button type="button" class="tab" data-view="summary">
       <span class="tab-icon" aria-hidden="true">▦</span><span>Yhteenveto</span>
+    </button>
+    <button type="button" class="tab" data-view="budget">
+      <span class="tab-icon" aria-hidden="true">◎</span><span>Budjetti</span>
     </button>
     <button type="button" class="tab" data-view="settings">
       <span class="tab-icon" aria-hidden="true">⚙</span><span>Asetukset</span>

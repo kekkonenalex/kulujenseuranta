@@ -260,6 +260,49 @@ export async function deleteTransaction(id) {
 }
 
 /* ------------------------------------------------------------
+   Budjetit
+
+   year_month null  = perusbudjetti, patee kaikkiin kuukausiin
+   year_month 'YYYY-MM' = vain sen kuukauden ylikirjoitus
+   ------------------------------------------------------------ */
+
+const BUDGET_COLUMNS = 'id, category_id, year_month, amount_cents';
+
+export async function fetchBudgets() {
+  const data = await run(getClient()
+    .from('budgets')
+    .select(BUDGET_COLUMNS));
+  return data || [];
+}
+
+/** Luo uuden budjettirivin tai paivittaa olemassa olevan summan. */
+export async function saveBudget({ id = null, categoryId, yearMonth = null, amountCents }) {
+  if (id) {
+    return run(getClient()
+      .from('budgets')
+      .update({ amount_cents: amountCents })
+      .eq('id', id)
+      .select(BUDGET_COLUMNS)
+      .single());
+  }
+  const userId = await requireUserId();
+  return run(getClient()
+    .from('budgets')
+    .insert({
+      user_id: userId,
+      category_id: categoryId,
+      year_month: yearMonth,
+      amount_cents: amountCents,
+    })
+    .select(BUDGET_COLUMNS)
+    .single());
+}
+
+export async function deleteBudget(id) {
+  await run(getClient().from('budgets').delete().eq('id', id));
+}
+
+/* ------------------------------------------------------------
    Varmuuskopion tuonti
    ------------------------------------------------------------ */
 
@@ -268,7 +311,7 @@ export async function deleteTransaction(id) {
  * Olemassa olevaa dataa ei poisteta: samannimiset kategoriat
  * yhdistetaan ja niiden transaktiot lisataan.
  */
-export async function importBackup({ categories = [], transactions = [] }) {
+export async function importBackup({ categories = [], transactions = [], budgets = [] }) {
   const userId = await requireUserId();
   const existing = await fetchCategories();
 
@@ -320,5 +363,25 @@ export async function importBackup({ categories = [], transactions = [] }) {
     inserted += chunk.length;
   }
 
-  return { createdCategories, inserted, skipped };
+  // Budjetit: olemassa olevaa ei ylikirjoiteta, puuttuvat lisataan.
+  const existingBudgets = await fetchBudgets();
+  const budgetKey = (categoryId, yearMonth) => `${categoryId}|${yearMonth || ''}`;
+  const haveBudget = new Set(existingBudgets.map((b) => budgetKey(b.category_id, b.year_month)));
+
+  let budgetsAdded = 0;
+  for (const budget of budgets) {
+    const categoryId = idMap.get(budget.category_id);
+    const cents = Math.round(Number(budget.amount_cents));
+    if (!categoryId || !Number.isFinite(cents) || cents < 0) continue;
+    if (haveBudget.has(budgetKey(categoryId, budget.year_month))) continue;
+    await saveBudget({
+      categoryId,
+      yearMonth: budget.year_month || null,
+      amountCents: cents,
+    });
+    haveBudget.add(budgetKey(categoryId, budget.year_month));
+    budgetsAdded += 1;
+  }
+
+  return { createdCategories, inserted, skipped, budgetsAdded };
 }

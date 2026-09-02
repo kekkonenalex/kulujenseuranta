@@ -9,6 +9,7 @@ export const state = {
   user: null,
   categories: [],      // { id, name, color, sort_order, archived }
   transactions: [],     // { id, category_id, amount_cents, occurred_on, description }
+  budgets: [],          // { id, category_id, year_month, amount_cents }
   month: currentMonth(), // valittu kuukausi 'YYYY-MM' (Kulut + Yhteenveto)
   view: 'entry',
   online: navigator.onLine,
@@ -119,6 +120,156 @@ export function summaryFor(month = state.month) {
     .sort((a, b) => b.cents - a.cents);
 
   return { month, total, count: txs.length, rows };
+}
+
+/* ------------------------------------------------------------
+   Budjetit
+
+   Perusbudjetti (year_month null) patee kaikkiin kuukausiin.
+   Kuukausikohtainen rivi ylikirjoittaa sen omalta kuukaudeltaan.
+   Kokonaisbudjettia ei tallenneta: se on kategoriabudjettien summa.
+   ------------------------------------------------------------ */
+
+export const BUDGET_WARN_SHARE = 80;   // % - talta osuudelta keltainen
+export const BUDGET_OVER_SHARE = 100;  // % - talta osuudelta punainen
+
+/** Kumpi rivi patee: kuukausiylikirjoitus, perusbudjetti vai ei mitaan. */
+export function budgetRowFor(categoryId, month = state.month) {
+  const override = state.budgets.find(
+    (b) => b.category_id === categoryId && b.year_month === month,
+  );
+  if (override) return { row: override, kind: 'month' };
+
+  const fallback = state.budgets.find(
+    (b) => b.category_id === categoryId && !b.year_month,
+  );
+  if (fallback) return { row: fallback, kind: 'default' };
+
+  return { row: null, kind: 'none' };
+}
+
+/** Budjetti sentteina tai null jos kategorialle ei ole budjettia. */
+export function budgetCentsFor(categoryId, month = state.month) {
+  const { row } = budgetRowFor(categoryId, month);
+  return row ? row.amount_cents : null;
+}
+
+export function budgetStateFor(spentCents, budgetCents) {
+  if (!budgetCents) return 'none';
+  const share = (spentCents / budgetCents) * 100;
+  if (share > BUDGET_OVER_SHARE) return 'over';
+  if (share >= BUDGET_WARN_SHARE) return 'warn';
+  return 'ok';
+}
+
+/**
+ * Ennen tata paivaa ennustetta ei nayteta: kuukauden ensimmaisina
+ * paivina yhden ison kulun (esim. vuokra) jakaminen kahdella paivalla
+ * ja kertominen kolmellakymmenella antaa taysin harhaanjohtavan luvun.
+ */
+export const FORECAST_MIN_DAYS = 5;
+
+/**
+ * Kuluvan kuukauden ennuste: talla tahdilla kuukausi paattyy summaan X.
+ *
+ * Palauttaa null jos kuukausi ei ole kuluva (menneessa kuussa toteuma on
+ * jo lopullinen) tai jos kuukautta on kulunut liian vahan luotettavaan
+ * arvioon.
+ *
+ * Tulevalle paivalle kirjatut kulut eivat kuulu tahdin laskentaan vaan
+ * lisataan ennusteeseen sellaisenaan - muuten yksi etukateen kirjattu
+ * kulu moninkertaistuisi.
+ */
+export function forecastCentsFor(month = state.month) {
+  if (month !== currentMonth()) return null;
+
+  const now = new Date();
+  const dayOfMonth = now.getDate();
+  if (dayOfMonth < FORECAST_MIN_DAYS) return null;
+
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const today = todayISO();
+  const rows = monthTransactions(month);
+
+  const spentSoFar = rows
+    .filter((tx) => tx.occurred_on <= today)
+    .reduce((sum, tx) => sum + tx.amount_cents, 0);
+  const scheduled = rows
+    .filter((tx) => tx.occurred_on > today)
+    .reduce((sum, tx) => sum + tx.amount_cents, 0);
+
+  if (dayOfMonth >= daysInMonth) return spentSoFar + scheduled;
+  return Math.round((spentSoFar / dayOfMonth) * daysInMonth) + scheduled;
+}
+
+/** Onko kuluva kuukausi viela liian nuori ennusteelle. */
+export function forecastTooEarly(month = state.month) {
+  return month === currentMonth() && new Date().getDate() < FORECAST_MIN_DAYS;
+}
+
+/**
+ * Budjettinakyman data yhdelle kuukaudelle.
+ *
+ * rows          - kategoriat joilla on budjetti, suurin ylitys ensin
+ * withoutBudget - kategoriat joilla ei ole budjettia (kulut mukana)
+ * totalBudget   - kategoriabudjettien summa
+ * totalSpent    - kulut budjetoiduissa kategorioissa
+ * unbudgetedSpent - kulut kategorioissa joilla ei ole budjettia
+ */
+export function budgetSummaryFor(month = state.month) {
+  const spentByCategory = new Map();
+  for (const tx of monthTransactions(month)) {
+    spentByCategory.set(tx.category_id, (spentByCategory.get(tx.category_id) || 0) + tx.amount_cents);
+  }
+
+  const rows = [];
+  const withoutBudget = [];
+
+  for (const category of allCategoriesSorted()) {
+    const spentCents = spentByCategory.get(category.id) || 0;
+    const { row, kind } = budgetRowFor(category.id, month);
+
+    // Arkistoitu kategoria nakyy vain jos silla on taman kuun kuluja
+    // tai voimassa oleva budjetti.
+    if (category.archived && !spentCents && !row) continue;
+
+    const entry = {
+      categoryId: category.id,
+      name: category.name,
+      color: category.color,
+      archived: category.archived,
+      spentCents,
+      budgetCents: row ? row.amount_cents : null,
+      budgetId: row ? row.id : null,
+      kind,
+      share: row && row.amount_cents ? (spentCents / row.amount_cents) * 100 : 0,
+      remainingCents: row ? row.amount_cents - spentCents : 0,
+      status: budgetStateFor(spentCents, row ? row.amount_cents : null),
+    };
+
+    if (row) rows.push(entry);
+    else withoutBudget.push(entry);
+  }
+
+  rows.sort((a, b) => b.share - a.share);
+  withoutBudget.sort((a, b) => b.spentCents - a.spentCents);
+
+  const totalBudget = rows.reduce((sum, r) => sum + r.budgetCents, 0);
+  const totalSpent = rows.reduce((sum, r) => sum + r.spentCents, 0);
+  const unbudgetedSpent = withoutBudget.reduce((sum, r) => sum + r.spentCents, 0);
+
+  return {
+    month,
+    rows,
+    withoutBudget,
+    totalBudget,
+    totalSpent,
+    unbudgetedSpent,
+    remainingCents: totalBudget - totalSpent,
+    share: totalBudget ? (totalSpent / totalBudget) * 100 : 0,
+    status: budgetStateFor(totalSpent, totalBudget),
+    forecastCents: forecastCentsFor(month),
+  };
 }
 
 /** Oletuspaiva kirjaukselle: tanaan. */

@@ -163,7 +163,7 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 7px; }
 /* ---------- Alapalkki ---------- */
 .tabbar {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   background: rgba(23, 26, 33, .96);
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--line);
@@ -171,9 +171,10 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 7px; }
 }
 .tab {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  min-height: var(--tabbar-h); padding: .35rem 0;
+  min-height: var(--tabbar-h); padding: .35rem .1rem;
   background: none; border: none; color: var(--text-dim);
-  font: inherit; font-size: .7rem; font-weight: 600; cursor: pointer;
+  font: inherit; font-size: .64rem; font-weight: 600; cursor: pointer;
+  letter-spacing: -.01em;
   -webkit-tap-highlight-color: transparent;
 }
 .tab-icon { font-size: 1.15rem; line-height: 1; }
@@ -296,6 +297,70 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 7px; }
 .sum-meta { display: flex; justify-content: space-between; font-size: .78rem; color: var(--text-dim); }
 .bar { height: 7px; background: var(--bg-3); border-radius: 999px; overflow: hidden; margin-bottom: .4rem; }
 .bar-fill { height: 100%; border-radius: 999px; }
+
+/* ---------- Budjetti ---------- */
+.budget-hero {
+  padding: 1.1rem; margin-bottom: 1.1rem;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.budget-hero-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: .7rem;
+}
+.budget-hero-top strong { font-size: 2rem; font-weight: 800; letter-spacing: -.02em; }
+.budget-hero .sum-meta { margin-top: .5rem; }
+.budget-hero p { margin: .6rem 0 0; }
+.bar-lg { height: 11px; }
+.budget-left { font-weight: 700; }
+
+/* Tilavarit: alle 80 % vihrea, 80-100 % keltainen, yli punainen */
+.is-ok    { color: var(--ok); }
+.is-warn  { color: var(--warn); }
+.is-over  { color: var(--danger); }
+.bar-fill.is-ok   { background: var(--ok); }
+.bar-fill.is-warn { background: var(--warn); }
+.bar-fill.is-over { background: var(--danger); }
+
+/* Budjettirivi on painike, mutta nayttaa samalta kuin yhteenvedon rivi */
+.budget-row {
+  display: block; width: 100%; text-align: left;
+  font: inherit; color: inherit; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.budget-row:active { background: var(--bg-3); }
+.budget-unset-row {
+  display: flex; align-items: center; gap: .6rem;
+  width: 100%; padding: .6rem .7rem; margin-bottom: .5rem;
+  background: var(--bg-3); border: 1px solid var(--line); border-radius: 11px;
+  text-align: left; font: inherit; color: inherit; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.budget-unset-row .dot { width: 14px; min-width: 14px; height: 14px; border-radius: 50%; }
+.budget-unset-name {
+  flex: 1; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.budget-unset-spent { font-size: .78rem; color: var(--text-dim); }
+.budget-add { color: var(--accent-2); font-weight: 600; font-size: .85rem; }
+.tag {
+  display: inline-block; margin-left: .35rem; padding: .05rem .4rem;
+  background: var(--bg-3); border: 1px solid var(--line); border-radius: 999px;
+  font-size: .68rem; font-weight: 600; color: var(--text-dim);
+  vertical-align: middle;
+}
+
+/* Valintanapit budjettimodaalissa */
+.radio-row {
+  display: flex; align-items: flex-start; gap: .65rem;
+  padding: .7rem .8rem; margin: 0 0 .5rem;
+  background: var(--bg-3); border: 1px solid var(--line); border-radius: 11px;
+  cursor: pointer;
+}
+.radio-row input[type="radio"] {
+  width: auto; min-height: auto; margin: .2rem 0 0; accent-color: var(--accent);
+}
+.radio-row > span { display: flex; flex-direction: column; gap: .1rem; }
+.radio-row strong { font-size: .95rem; font-weight: 600; }
 
 /* ---------- Kategorialista (asetukset) ---------- */
 .cat-list { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1rem; }

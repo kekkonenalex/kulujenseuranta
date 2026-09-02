@@ -15,6 +15,7 @@ import { initAuthView, resetAuthView } from './ui-auth.js';
 import { initEntryView, renderEntryView, refreshEntryDateIfStale } from './ui-entry.js';
 import { initTransactionsView, renderTransactionsView } from './ui-transactions.js';
 import { initSummaryView, renderSummaryView } from './ui-summary.js';
+import { initBudgetView, renderBudgetView } from './ui-budget.js';
 import { initCategoriesView, renderCategoriesView } from './ui-categories.js';
 import { initExportView } from './export.js';
 
@@ -22,6 +23,7 @@ const VIEWS = {
   entry:        { panel: '#panel-entry',        title: 'Kirjaa kulu' },
   transactions: { panel: '#panel-transactions', title: 'Kulut' },
   summary:      { panel: '#panel-summary',      title: 'Yhteenveto' },
+  budget:       { panel: '#panel-budget',       title: 'Budjetti' },
   settings:     { panel: '#panel-settings',     title: 'Asetukset' },
 };
 
@@ -74,6 +76,7 @@ function renderAll() {
   renderEntryView();
   renderTransactionsView();
   renderSummaryView();
+  renderBudgetView();
   renderCategoriesView();
 }
 
@@ -82,12 +85,13 @@ function renderAll() {
    ------------------------------------------------------------ */
 
 async function loadData() {
-  const [categories, transactions] = await Promise.all([
+  const [categories, transactions, budgets] = await Promise.all([
     db.fetchCategories(),
     db.fetchTransactions(),
+    db.fetchBudgets(),
   ]);
   lastLoadedAt = Date.now();
-  setState({ categories, transactions });
+  setState({ categories, transactions, budgets });
 }
 
 async function loadDataSafely() {
@@ -112,6 +116,7 @@ async function startApp(session) {
     initEntryView();
     initTransactionsView();
     initSummaryView();
+    initBudgetView();
     initCategoriesView();
     initExportView({ reloadData: loadData });
     viewsInitialised = true;
@@ -129,7 +134,7 @@ async function handleSignOut() {
     console.warn('Uloskirjautuminen palvelimelta ei onnistunut:', err.message);
   }
   closeModal();
-  setState({ user: null, categories: [], transactions: [], view: 'entry' });
+  setState({ user: null, categories: [], transactions: [], budgets: [], view: 'entry' });
   resetAuthView();
   showScreen('auth');
 }
@@ -211,7 +216,7 @@ async function boot() {
 
     db.onAuthChange((event, newSession) => {
       if (event === 'SIGNED_OUT') {
-        setState({ user: null, categories: [], transactions: [] });
+        setState({ user: null, categories: [], transactions: [], budgets: [] });
         resetAuthView();
         showScreen('auth');
         return;
