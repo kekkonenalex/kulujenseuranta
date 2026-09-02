@@ -195,6 +195,25 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 7px; }
   margin: 1.1rem 0 .5rem; font-size: .82rem; color: var(--text-dim);
   letter-spacing: .02em;
 }
+/* Kategorian pudotusvalikko: valitun kategorian vari nakyy pallona,
+   koska natiivi select ei voi varittaa omia vaihtoehtojaan. */
+.select-field { position: relative; }
+.select-field select {
+  min-height: 54px; padding-left: 2.5rem; padding-right: 2.4rem;
+  font-size: 1rem; font-weight: 600;
+}
+.select-field::after {
+  content: '⌄';
+  position: absolute; right: 1rem; top: 46%; transform: translateY(-50%);
+  color: var(--text-dim); font-size: 1.3rem; line-height: 1; pointer-events: none;
+}
+.select-dot {
+  position: absolute; left: .95rem; top: 50%; transform: translateY(-50%);
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--line); pointer-events: none;
+  transition: background .12s ease;
+}
+
 .cat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .6rem; }
 .cat-btn {
   display: flex; align-items: center; gap: .55rem;

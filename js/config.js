@@ -15,4 +15,4 @@ export const SUPABASE_URL = 'https://wqibkufakgdmzcovmdos.supabase.co';
 export const SUPABASE_ANON_KEY = 'sb_publishable_f1A4zFIkN6pwnm8MRyk_1g_Dbt194dP';
 
 // Nakyy asetuksissa ja service workerin cache-nimessa.
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '1.1.0';

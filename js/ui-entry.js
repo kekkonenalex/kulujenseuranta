@@ -1,35 +1,44 @@
 // ============================================================
 //  KIRJAA-nakyma: kulun kirjaus mahdollisimman vahalla kosketuksella.
-//  Summa -> kategoria -> Tallenna. Paivamaara on esitaytetty.
+//  Summa -> kategoria pudotusvalikosta -> Tallenna.
+//  Paivamaara on esitaytetty, ja valittu kategoria jaa voimaan
+//  tallennuksen jalkeen, joten perakkaiset kirjaukset samaan
+//  kategoriaan eivat vaadi valikon avaamista uudelleen.
 // ============================================================
 
 import * as db from './db.js';
-import { state, setState, activeCategories } from './state.js';
+import { state, setState, activeCategories, categoryById } from './state.js';
 import {
   parseAmountToCents, todayISO, addDaysISO, isValidISODate, formatMoney,
 } from './format.js';
 import { qs, show, showError, clearError, setBusy, toast, escapeHtml } from './ui-common.js';
 
-let selectedCategoryId = null;
+const PLACEHOLDER = 'Valitse kategoria…';
+
+/** Valitun kategorian vari pallona valikon vasemmassa reunassa. */
+function renderSelectedColor() {
+  const dot = qs('#entry-category-dot');
+  const cat = categoryById(qs('#entry-category').value);
+  dot.style.background = cat ? cat.color : 'var(--line)';
+}
 
 function renderCategories() {
-  const grid = qs('#entry-categories');
+  const select = qs('#entry-category');
   const categories = activeCategories();
+  const previous = select.value;
 
   show(qs('#entry-no-categories'), categories.length === 0);
-  show(grid, categories.length > 0);
+  show(qs('#entry-category-field'), categories.length > 0);
 
-  if (selectedCategoryId && !categories.some((c) => c.id === selectedCategoryId)) {
-    selectedCategoryId = null;
-  }
+  select.innerHTML = [
+    `<option value="">${escapeHtml(PLACEHOLDER)}</option>`,
+    ...categories.map((cat) => `
+      <option value="${escapeHtml(cat.id)}">${escapeHtml(cat.name)}</option>`),
+  ].join('');
 
-  grid.innerHTML = categories.map((cat) => `
-    <button type="button" class="cat-btn${cat.id === selectedCategoryId ? ' is-selected' : ''}"
-            data-category-id="${escapeHtml(cat.id)}" aria-pressed="${cat.id === selectedCategoryId}">
-      <span class="dot" style="background:${escapeHtml(cat.color)}"></span>
-      <span class="cat-name">${escapeHtml(cat.name)}</span>
-    </button>
-  `).join('');
+  // Valinta sailyy uudelleenpiirron yli, jos kategoria on edelleen olemassa.
+  select.value = categories.some((cat) => cat.id === previous) ? previous : '';
+  renderSelectedColor();
 }
 
 function renderDateChips() {
@@ -50,6 +59,7 @@ async function handleSubmit(event) {
   clearError(errorBox);
 
   const amountCents = parseAmountToCents(qs('#entry-amount').value);
+  const categoryId = qs('#entry-category').value;
   const occurredOn = qs('#entry-date').value;
   const description = qs('#entry-description').value.trim();
 
@@ -58,8 +68,9 @@ async function handleSubmit(event) {
     qs('#entry-amount').focus();
     return;
   }
-  if (!selectedCategoryId) {
+  if (!categoryId) {
     showError(errorBox, 'Valitse kategoria.');
+    qs('#entry-category').focus();
     return;
   }
   if (!isValidISODate(occurredOn)) {
@@ -70,7 +81,7 @@ async function handleSubmit(event) {
   setBusy(submit, true);
   try {
     const created = await db.createTransaction({
-      categoryId: selectedCategoryId,
+      categoryId,
       amountCents,
       occurredOn,
       description,
@@ -98,13 +109,8 @@ async function handleSubmit(event) {
 export function initEntryView() {
   setDate(todayISO());
 
-  qs('#entry-categories').addEventListener('click', (event) => {
-    const button = event.target.closest('[data-category-id]');
-    if (!button) return;
-    selectedCategoryId = button.dataset.categoryId === selectedCategoryId
-      ? null
-      : button.dataset.categoryId;
-    renderCategories();
+  qs('#entry-category').addEventListener('change', () => {
+    renderSelectedColor();
     clearError(qs('#entry-error'));
   });
 

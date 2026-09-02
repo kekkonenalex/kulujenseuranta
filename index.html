@@ -88,7 +88,12 @@
           <button type="button" class="btn btn-link btn-tiny" data-goto="settings">Hallitse</button>
         </div>
 
-        <div id="entry-categories" class="cat-grid"></div>
+        <div class="select-field" id="entry-category-field">
+          <span class="select-dot" id="entry-category-dot" aria-hidden="true"></span>
+          <select id="entry-category" aria-label="Kulun kategoria">
+            <option value="">Valitse kategoria…</option>
+          </select>
+        </div>
         <p id="entry-no-categories" class="empty hidden">
           Ei kategorioita vielä. Luo ensimmäinen kategoria
           <button type="button" class="btn btn-link btn-tiny" data-goto="settings">Asetuksista</button>.
