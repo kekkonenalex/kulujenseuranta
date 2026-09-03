@@ -13,24 +13,21 @@ import {
 function renderList() {
   const list = qs('#cat-list');
   const categories = allCategoriesSorted();
-  const counts = transactionCountByCategory();
 
   show(qs('#cat-empty'), categories.length === 0);
   show(qs('#cat-reorder-hint'), categories.length > 1);
 
-  list.innerHTML = categories.map((cat) => {
-    const count = counts.get(cat.id) || 0;
-    return `
+  // Kirjausten maara nakyy Yhteenveto-nakymassa; taalla se veisi vain
+  // tilaa pidemmilta kategorianimilta puhelimen kapealla naytolla.
+  list.innerHTML = categories.map((cat) => `
       <div class="cat-row" data-cat-id="${escapeHtml(cat.id)}">
         <span class="drag-handle" data-drag-handle aria-hidden="true">⠿</span>
         <span class="dot" style="background:${escapeHtml(cat.color)}"></span>
         <span class="cat-row-name">${escapeHtml(cat.name)}${cat.archived ? ' <span class="muted small">(arkistoitu)</span>' : ''}</span>
-        <span class="cat-row-count">${count} kirjausta</span>
         <button type="button" class="icon-btn" data-edit="${escapeHtml(cat.id)}" aria-label="Muokkaa kategoriaa ${escapeHtml(cat.name)}">✎</button>
         <button type="button" class="icon-btn" data-delete="${escapeHtml(cat.id)}" aria-label="Poista kategoria ${escapeHtml(cat.name)}">🗑</button>
       </div>
-    `;
-  }).join('');
+    `).join('');
 }
 
 async function handleAdd(event) {

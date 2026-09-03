@@ -365,8 +365,8 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 7px; }
 /* ---------- Kategorialista (asetukset) ---------- */
 .cat-list { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1rem; }
 .cat-row {
-  display: flex; align-items: center; gap: .45rem;
-  padding: .6rem .6rem .6rem .35rem;
+  display: flex; align-items: center; gap: .6rem;
+  padding: .6rem .7rem .6rem .35rem;
   background: var(--bg-3); border: 1px solid var(--line); border-radius: 11px;
 }
 .cat-row .dot { width: 14px; min-width: 14px; height: 14px; border-radius: 50%; }
@@ -390,12 +390,9 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 7px; }
 body.is-reordering { -webkit-user-select: none; user-select: none; }
 .reorder-hint { margin: -.4rem 0 .9rem; font-size: .78rem; color: var(--text-dim); }
 .cat-row .cat-row-name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cat-row .cat-row-count { font-size: .72rem; color: var(--text-dim); white-space: nowrap; }
 .cat-form { display: flex; gap: .5rem; align-items: center; }
 .cat-form input[type="text"] { flex: 1; }
 .cat-form .btn { margin-top: 0; }
-.cat-row .icon-btn { min-width: 34px; }
-
 .icon-btn {
   min-width: 40px; min-height: 40px; padding: 0;
   background: transparent; border: none; color: var(--text-dim);

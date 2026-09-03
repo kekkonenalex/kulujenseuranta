@@ -6,7 +6,7 @@
    tuoretta ja v1 vaatii verkon tallentamiseen.
    ============================================================ */
 
-const VERSION = '1.4.0';
+const VERSION = '1.4.1';
 const CACHE = `kulut-shell-v${VERSION}`;
 
 const SHELL = [
