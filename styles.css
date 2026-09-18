@@ -321,13 +321,15 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 7px; }
 .bar-fill.is-warn { background: var(--warn); }
 .bar-fill.is-over { background: var(--danger); }
 
-/* Budjettirivi on painike, mutta nayttaa samalta kuin yhteenvedon rivi */
-.budget-row {
+/* Budjetti- ja yhteenvetorivit ovat painikkeita mutta nayttavat korteilta */
+.budget-row,
+.summary-row {
   display: block; width: 100%; text-align: left;
   font: inherit; color: inherit; cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.budget-row:active { background: var(--bg-3); }
+.budget-row:active,
+.summary-row:active { background: var(--bg-3); }
 .budget-unset-row {
   display: flex; align-items: center; gap: .6rem;
   width: 100%; padding: .6rem .7rem; margin-bottom: .5rem;
@@ -431,6 +433,29 @@ body.is-reordering { -webkit-user-select: none; user-select: none; }
 }
 @keyframes sheet-up { from { transform: translateY(14px); opacity: .6; } to { transform: none; opacity: 1; } }
 .modal-title { margin: 0 0 .25rem; font-size: 1.1rem; }
+
+/* ---------- Kategorian kirjaukset modaalissa ---------- */
+.modal-title .dot {
+  display: inline-block; width: 12px; height: 12px;
+  border-radius: 50%; margin-right: .35rem; vertical-align: baseline;
+}
+.modal-tx-list {
+  display: flex; flex-direction: column;
+  margin-top: .3rem;
+}
+.modal-tx {
+  display: flex; align-items: baseline; justify-content: space-between; gap: .7rem;
+  padding: .6rem .1rem;
+  border-bottom: 1px solid var(--line);
+}
+.modal-tx:last-child { border-bottom: none; }
+.modal-tx-main { display: flex; flex-direction: column; min-width: 0; }
+.modal-tx-date { font-size: .9rem; font-weight: 600; }
+.modal-tx-desc {
+  font-size: .8rem; color: var(--text-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.modal-tx-amount { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* ---------- Toast ---------- */
 .toast {

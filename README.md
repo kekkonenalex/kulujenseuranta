@@ -5,7 +5,8 @@ puhelimella heti transaktion jälkeen, kolmella kosketuksella.
 
 - **Kirjaa** – summa, kategoria (pudotusvalikko), päivämäärä (esitäytetty), vapaaehtoinen kuvaus
 - **Kulut** – kuukauden kirjaukset päivittäin, muokkaus ja poisto
-- **Yhteenveto** – kulut kategorioittain, kokonaissumma, vertailu edelliseen kuukauteen
+- **Yhteenveto** – kulut kategorioittain, kokonaissumma, vertailu edelliseen kuukauteen;
+  kategoriaa painamalla aukeaa sen kuukauden kaikki kirjaukset
 - **Budjetti** – kuukausibudjetti kategorioittain, seuranta ja ennuste
 - **Asetukset** – kategorioiden hallinta ja järjestys, Excel-vienti, JSON-varmuuskopio
 
