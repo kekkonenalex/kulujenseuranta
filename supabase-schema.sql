@@ -385,6 +385,203 @@ grant execute on function public.log_expense(text, numeric, text, text, date) to
 grant execute on function public.list_expense_categories(text) to anon, authenticated;
 grant execute on function public.fmt_eur(integer) to anon, authenticated;
 
+-- ============================================================
+--  LUKUOIKEUS (Otso-avustaja)
+--
+--  Tavallinen laitetunniste voi vain kirjata. Tunniste jolla on
+--  can_read = true voi lisaksi LUKEA kuukauden yhteenvedon ja
+--  kirjauslistan omasta datastaan. Muokata tai poistaa ei voi
+--  kumpikaan. Oletus on false, joten vanhat tunnisteet eivat muutu.
+--
+--  Taman osion voi ajaa erikseen: se on idempotentti.
+-- ============================================================
+
+alter table public.device_tokens add column if not exists can_read boolean not null default false;
+
+-- Kayttaja, jolle lukuoikeudellinen tunniste kuuluu, tai null.
+-- Vain alla olevat funktiot kutsuvat tata; sita ei voi kutsua ulkoa.
+create or replace function public.token_reader(p_token text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, extensions
+as $fn$
+declare
+  v_token public.device_tokens%rowtype;
+begin
+  if p_token is null or length(p_token) < 20 then
+    return null;
+  end if;
+  select * into v_token from public.device_tokens
+  where token_hash = encode(digest(p_token, 'sha256'), 'hex');
+  if not found or not v_token.can_read then
+    return null;
+  end if;
+  update public.device_tokens set last_used_at = now() where id = v_token.id;
+  return v_token.user_id;
+end;
+$fn$;
+
+revoke execute on function public.token_reader(text) from public, anon, authenticated;
+
+-- Kuukauden yhteenveto: kategorioittain kulut, budjetti (kuukauden oma tai
+-- perusbudjetti) ja edellinen kuukausi, seka kokonaissummat ja ennuste
+-- samalla saannolla kuin sovelluksessa (vasta 5. paivasta alkaen, tulevalle
+-- paivalle kirjatut lisataan sellaisenaan).
+create or replace function public.expense_overview(p_token text, p_month text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $fn$
+declare
+  v_user     uuid;
+  v_month    text;
+  v_start    date;
+  v_end      date;
+  v_pstart   date;
+  v_rows     jsonb;
+  v_total    integer;
+  v_prev     integer;
+  v_budget   integer;
+  v_so_far   integer;
+  v_later    integer;
+  v_day      integer;
+  v_days     integer;
+  v_forecast integer;
+begin
+  v_user := public.token_reader(p_token);
+  if v_user is null then
+    return jsonb_build_object('ok', false, 'message', 'Virhe: tunnisteella ei ole lukuoikeutta');
+  end if;
+
+  v_month := coalesce(nullif(btrim(coalesce(p_month, '')), ''), to_char(current_date, 'YYYY-MM'));
+  if v_month !~ '^[0-9]{4}-(0[1-9]|1[0-2])$' then
+    return jsonb_build_object('ok', false, 'message', 'Virhe: kuukausi muodossa VVVV-KK');
+  end if;
+  v_start  := to_date(v_month || '-01', 'YYYY-MM-DD');
+  v_end    := (v_start + interval '1 month')::date;
+  v_pstart := (v_start - interval '1 month')::date;
+
+  with cats as (
+    select id, name, sort_order, created_at, archived from public.categories where user_id = v_user
+  ), spent as (
+    select category_id, sum(amount_cents)::integer as cents, count(*)::integer as n
+    from public.transactions
+    where user_id = v_user and occurred_on >= v_start and occurred_on < v_end
+    group by category_id
+  ), prev as (
+    select category_id, sum(amount_cents)::integer as cents
+    from public.transactions
+    where user_id = v_user and occurred_on >= v_pstart and occurred_on < v_start
+    group by category_id
+  ), bud as (
+    select c.id,
+           coalesce(
+             (select b.amount_cents from public.budgets b where b.category_id = c.id and b.year_month = v_month),
+             (select b.amount_cents from public.budgets b where b.category_id = c.id and b.year_month is null)
+           ) as cents
+    from cats c
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'category', c.name,
+           'spent_cents', coalesce(s.cents, 0),
+           'count', coalesce(s.n, 0),
+           'budget_cents', b.cents,
+           'previous_cents', coalesce(p.cents, 0)
+         ) order by c.sort_order, c.created_at), '[]'::jsonb)
+  into v_rows
+  from cats c
+  left join spent s on s.category_id = c.id
+  left join prev p on p.category_id = c.id
+  left join bud b on b.id = c.id
+  where not c.archived or coalesce(s.cents, 0) > 0 or coalesce(p.cents, 0) > 0;
+
+  select coalesce(sum(amount_cents), 0) into v_total from public.transactions
+  where user_id = v_user and occurred_on >= v_start and occurred_on < v_end;
+  select coalesce(sum(amount_cents), 0) into v_prev from public.transactions
+  where user_id = v_user and occurred_on >= v_pstart and occurred_on < v_start;
+  select sum((r ->> 'budget_cents')::integer) into v_budget
+  from jsonb_array_elements(v_rows) r where r ->> 'budget_cents' is not null;
+
+  v_forecast := null;
+  if v_month = to_char(current_date, 'YYYY-MM') then
+    v_day  := extract(day from current_date)::integer;
+    v_days := extract(day from (v_end - 1))::integer;
+    if v_day >= 5 then
+      select coalesce(sum(amount_cents) filter (where occurred_on <= current_date), 0),
+             coalesce(sum(amount_cents) filter (where occurred_on > current_date), 0)
+      into v_so_far, v_later
+      from public.transactions
+      where user_id = v_user and occurred_on >= v_start and occurred_on < v_end;
+      v_forecast := round(v_so_far::numeric / v_day * v_days) + v_later;
+    end if;
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'month', v_month,
+    'categories', v_rows,
+    'total_cents', v_total,
+    'previous_total_cents', v_prev,
+    'budget_total_cents', v_budget,
+    'forecast_cents', v_forecast,
+    'message', 'ok'
+  );
+end;
+$fn$;
+
+-- Kirjaukset aikavalilta, uusin ensin, valinnaisesti yhdesta kategoriasta.
+create or replace function public.list_expenses(
+  p_token    text,
+  p_from     date,
+  p_to       date,
+  p_category text default null,
+  p_limit    integer default 200
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $fn$
+declare
+  v_user uuid;
+  v_rows jsonb;
+begin
+  v_user := public.token_reader(p_token);
+  if v_user is null then
+    return jsonb_build_object('ok', false, 'expenses', '[]'::jsonb,
+      'message', 'Virhe: tunnisteella ei ole lukuoikeutta');
+  end if;
+  if p_from is null or p_to is null or p_to < p_from or p_to - p_from > 400 then
+    return jsonb_build_object('ok', false, 'expenses', '[]'::jsonb,
+      'message', 'Virhe: aikavali puuttuu tai on yli 400 paivaa');
+  end if;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'occurred_on', t.occurred_on,
+           'category', t.category_name,
+           'amount_cents', t.amount_cents,
+           'description', t.description
+         ) order by t.occurred_on desc, t.created_at desc), '[]'::jsonb)
+  into v_rows
+  from (
+    select tr.occurred_on, tr.created_at, tr.amount_cents, tr.description, c.name as category_name
+    from public.transactions tr
+    join public.categories c on c.id = tr.category_id
+    where tr.user_id = v_user and tr.occurred_on between p_from and p_to
+      and (p_category is null or lower(btrim(c.name)) = lower(btrim(p_category)))
+    order by tr.occurred_on desc, tr.created_at desc
+    limit least(greatest(coalesce(p_limit, 200), 1), 500)
+  ) t;
+
+  return jsonb_build_object('ok', true, 'expenses', v_rows, 'message', 'ok');
+end;
+$fn$;
+
+grant execute on function public.expense_overview(text, text) to anon, authenticated;
+grant execute on function public.list_expenses(text, date, date, text, integer) to anon, authenticated;
+
 -- ------------------------------------------------------------
 --  VALMIS. Ei valmiita kategorioita - luot ne itse sovelluksessa.
 -- ------------------------------------------------------------

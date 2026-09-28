@@ -44,7 +44,7 @@ function renderList() {
       <div class="token-main">
         <span class="token-name">${escapeHtml(token.name)}</span>
         <span class="muted small">
-          Luotu ${escapeHtml(formatDate(token.created_at.slice(0, 10)))} ·
+          ${token.can_read ? 'lukuoikeus · ' : ''}Luotu ${escapeHtml(formatDate(token.created_at.slice(0, 10)))} ·
           ${token.last_used_at
             ? `käytetty ${escapeHtml(formatDate(token.last_used_at.slice(0, 10)))}`
             : 'ei vielä käytössä'}
@@ -104,14 +104,16 @@ async function handleCreate() {
   clearError(errorBox);
 
   const name = nameInput.value.trim() || 'iPhone';
+  const canRead = qs('#token-can-read').checked;
   const token = generateToken();
 
   setBusy(button, true, 'Luodaan…');
   try {
     const tokenHash = await sha256Hex(token);
-    const created = await db.createDeviceToken({ name, tokenHash });
+    const created = await db.createDeviceToken({ name, tokenHash, canRead });
     setState({ deviceTokens: [created, ...state.deviceTokens] });
     nameInput.value = '';
+    qs('#token-can-read').checked = false;
     showTokenOnce(token, name);
   } catch (err) {
     showError(errorBox, err.message);

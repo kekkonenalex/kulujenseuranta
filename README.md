@@ -230,6 +230,20 @@ lukea, muokata tai poistaa mitään. Poisto asetuksista katkaisee pääsyn väli
 Pikakomennot eivät voi käyttää sovelluksen kirjautumista, koska Supabasen käyttöoikeustunnus
 vanhenee tunnissa ja päivitystunnus kiertää jokaisella käytöllä.
 
+### Lukuoikeus (Otso-avustaja)
+
+Tunnisteen luonnissa voi rastittaa *Saa myös lukea kulut ja budjetit*. Tällainen tunniste
+(`device_tokens.can_read`) voi kirjauksen lisäksi kutsua kahta lukufunktiota:
+
+| Funktio | Palauttaa |
+|---|---|
+| `expense_overview(p_token, p_month)` | kuukauden kulut kategorioittain, budjetit, edellisen kuun vertailun ja ennusteen |
+| `list_expenses(p_token, p_from, p_to, p_category, p_limit)` | kirjaukset aikaväliltä, uusin ensin |
+
+Muokata tai poistaa ei voi kukaan tunnisteella. Tavalliset tunnisteet pysyvät
+pelkkinä kirjaustunnisteina. Lukuoikeus vaatii, että `supabase-schema.sql`:n osio
+*LUKUOIKEUS* on ajettu (se on idempotentti, ja sen voi ajaa erikseen).
+
 ## Varmuuskopio
 
 Asetukset → *Vie varmuuskopio* tuottaa JSON-tiedoston, jonka *Tuo varmuuskopio* lukee

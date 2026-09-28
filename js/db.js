@@ -309,20 +309,23 @@ export async function deleteBudget(id) {
    arvotaan selaimessa, naytetaan kerran ja unohdetaan.
    ------------------------------------------------------------ */
 
+// '*' eika sarakelista: toimii myos ennen kuin can_read-sarake on lisatty.
 export async function fetchDeviceTokens() {
   const data = await run(getClient()
     .from('device_tokens')
-    .select('id, name, created_at, last_used_at')
+    .select('*')
     .order('created_at', { ascending: false }));
   return data || [];
 }
 
-export async function createDeviceToken({ name, tokenHash }) {
+export async function createDeviceToken({ name, tokenHash, canRead = false }) {
   const userId = await requireUserId();
+  const row = { user_id: userId, name: String(name).trim() || 'iPhone', token_hash: tokenHash };
+  if (canRead) row.can_read = true; // vain silloin: vanha skeema ei tunne saraketta
   return run(getClient()
     .from('device_tokens')
-    .insert({ user_id: userId, name: String(name).trim() || 'iPhone', token_hash: tokenHash })
-    .select('id, name, created_at, last_used_at')
+    .insert(row)
+    .select('*')
     .single());
 }
 
