@@ -309,11 +309,11 @@ export async function deleteBudget(id) {
    arvotaan selaimessa, naytetaan kerran ja unohdetaan.
    ------------------------------------------------------------ */
 
-// '*' eika sarakelista: toimii myos ennen kuin can_read-sarake on lisatty.
+// Vain naytettavat sarakkeet: tunnisteen tiiviste ei tule selaimeen.
 export async function fetchDeviceTokens() {
   const data = await run(getClient()
     .from('device_tokens')
-    .select('*')
+    .select('id, name, created_at, last_used_at, can_read')
     .order('created_at', { ascending: false }));
   return data || [];
 }
@@ -325,7 +325,7 @@ export async function createDeviceToken({ name, tokenHash, canRead = false }) {
   return run(getClient()
     .from('device_tokens')
     .insert(row)
-    .select('*')
+    .select('id, name, created_at, last_used_at, can_read')
     .single());
 }
 
