@@ -155,16 +155,18 @@ async function requireUserId() {
    Kategoriat
    ------------------------------------------------------------ */
 
+const CATEGORY_COLUMNS = 'id, name, color, sort_order, archived, ask_description, created_at';
+
 export async function fetchCategories() {
   const data = await run(getClient()
     .from('categories')
-    .select('id, name, color, sort_order, archived, created_at')
+    .select(CATEGORY_COLUMNS)
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true }));
   return data || [];
 }
 
-export async function createCategory({ name, color, sortOrder }) {
+export async function createCategory({ name, color, sortOrder, askDescription = false }) {
   const userId = await requireUserId();
   const data = await run(getClient()
     .from('categories')
@@ -173,8 +175,9 @@ export async function createCategory({ name, color, sortOrder }) {
       name: String(name).trim(),
       color: color || '#6366f1',
       sort_order: Number.isFinite(sortOrder) ? sortOrder : 0,
+      ask_description: Boolean(askDescription),
     })
-    .select('id, name, color, sort_order, archived, created_at')
+    .select(CATEGORY_COLUMNS)
     .single());
   return data;
 }
@@ -185,12 +188,13 @@ export async function updateCategory(id, patch) {
   if (patch.color !== undefined) allowed.color = patch.color;
   if (patch.archived !== undefined) allowed.archived = Boolean(patch.archived);
   if (patch.sortOrder !== undefined) allowed.sort_order = patch.sortOrder;
+  if (patch.askDescription !== undefined) allowed.ask_description = Boolean(patch.askDescription);
 
   const data = await run(getClient()
     .from('categories')
     .update(allowed)
     .eq('id', id)
-    .select('id, name, color, sort_order, archived, created_at')
+    .select(CATEGORY_COLUMNS)
     .single());
   return data;
 }
@@ -362,6 +366,7 @@ export async function importBackup({ categories = [], transactions = [], budgets
       name: cat.name,
       color: cat.color || '#6366f1',
       sortOrder: Number.isFinite(cat.sort_order) ? cat.sort_order : 0,
+      askDescription: cat.ask_description === true,
     });
     byName.set(key, created);
     idMap.set(cat.id, created.id);

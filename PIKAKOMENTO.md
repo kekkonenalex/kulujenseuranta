@@ -101,6 +101,48 @@ virheestä, esimerkiksi:
 - `Kirjattu 60,00 € · Liikenne — budjetti ylittynyt 3,00 €`
 - `Virhe: tuntematon laitetunniste — luo uusi sovelluksen asetuksista`
 
+## Vaihe 2b: kuvaus vain valituille kategorioille
+
+Sovelluksessa voit merkitä kategoriat, joille pikakomento kysyy kuvauksen:
+**Asetukset → Kategoriat → ✎ (muokkaa) → rasti "Kysy kuvaus pikakomennossa" → Tallenna.**
+Merkityt kategoriat näkyvät asetusten listassa merkinnällä *(kuvaus)* ja pikakomennon
+valikossa muodossa `Vaatteet (kuvaus)`. Palvelin poistaa merkinnän ennen tallennusta, joten
+kulu kirjautuu oikeaan kategoriaan ja ilmoituksessa näkyy pelkkä nimi.
+
+Pikakomento toimii ilman muutoksia myös merkintöjen kanssa — se ei vain kysy kuvausta ennen
+kuin lisäät nämä toiminnot. Lisää ne **kohdan 8 (Aseta muuttuja `Kategoria`) ja kohdan 9
+(Hae URL-osoitteen sisältö, log_expense) väliin**, tässä järjestyksessä:
+
+**8a. Teksti** (Text)
+Jätä tekstikenttä tyhjäksi.
+
+**8b. Aseta muuttuja** (Set Variable)
+Nimi: `Kuvaus`. Arvo: kohdan 8a *Teksti*. (Näin muuttuja on olemassa myös silloin, kun
+kuvausta ei kysytä.)
+
+**8c. Jos** (If)
+- Syöte: muuttuja `Kategoria`
+- Ehto: **sisältää** (contains)
+- Teksti: `(kuvaus)`
+
+Pikakomennot lisää automaattisesti rivit *Muuten* (Otherwise) ja *Lopeta Jos* (End If).
+Jätä *Muuten*-haara tyhjäksi.
+
+**8d. Kysy syötettä** (Ask for Input) — raahaa *Jos*- ja *Muuten*-rivien väliin
+- Syötteen tyyppi: **Teksti** (Text)
+- Kysymys: `Kuvaus`
+
+**8e. Aseta muuttuja** (Set Variable) — myös *Jos*- ja *Muuten*-rivien väliin
+Nimi: `Kuvaus`. Arvo: *Annettu syöte*.
+
+Lisää lopuksi kohdan 9 pyynnön runkoon neljäs kenttä:
+
+| Kenttä | Tyyppi | Arvo |
+|---|---|---|
+| `p_description` | Teksti (Text) | muuttuja `Kuvaus` |
+
+Jos kuvauskentän jättää tyhjäksi ja painaa *Valmis*, kulu kirjautuu ilman kuvausta.
+
 ### Vastauksen muut kentät
 
 Ilmoitukseen riittää `message`, mutta vastaus sisältää myös erikseen kentät `ok` (tosi/epätosi),
@@ -145,6 +187,8 @@ kohdan 9 `p_category`-kentän tyypiksi Teksti ja kirjoita kategorian nimi suoraa
 
 Laita nämä keskikokoiseen tai isoon widgetiin: napautat kategoriaa, kirjoitat summan, valmis.
 Kategorian nimen pitää täsmätä sovelluksen kategoriaan (isot ja pienet kirjaimet eivät haittaa).
+Jos haluat näihinkin kuvauksen, lisää kohdan 9 eteen *Kysy syötettä* (Teksti) ja runkoon
+kenttä `p_description` = *Annettu syöte*.
 
 ## Virheilmoitukset
 

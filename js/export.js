@@ -194,7 +194,12 @@ function exportJson() {
     app_version: APP_VERSION,
     exported_at: new Date().toISOString(),
     categories: state.categories.map((c) => ({
-      id: c.id, name: c.name, color: c.color, sort_order: c.sort_order, archived: c.archived,
+      id: c.id,
+      name: c.name,
+      color: c.color,
+      sort_order: c.sort_order,
+      archived: c.archived,
+      ask_description: c.ask_description === true,
     })),
     transactions: state.transactions.map((t) => ({
       id: t.id,

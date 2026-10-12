@@ -23,7 +23,7 @@ function renderList() {
       <div class="cat-row" data-cat-id="${escapeHtml(cat.id)}">
         <span class="drag-handle" data-drag-handle aria-hidden="true">⠿</span>
         <span class="dot" style="background:${escapeHtml(cat.color)}"></span>
-        <span class="cat-row-name">${escapeHtml(cat.name)}${cat.archived ? ' <span class="muted small">(arkistoitu)</span>' : ''}</span>
+        <span class="cat-row-name">${escapeHtml(cat.name)}${cat.ask_description ? ' <span class="muted small">(kuvaus)</span>' : ''}${cat.archived ? ' <span class="muted small">(arkistoitu)</span>' : ''}</span>
         <button type="button" class="icon-btn" data-edit="${escapeHtml(cat.id)}" aria-label="Muokkaa kategoriaa ${escapeHtml(cat.name)}">✎</button>
         <button type="button" class="icon-btn" data-delete="${escapeHtml(cat.id)}" aria-label="Poista kategoria ${escapeHtml(cat.name)}">🗑</button>
       </div>
@@ -87,6 +87,11 @@ function openEditModal(categoryId) {
              style="width:auto;min-height:auto">
       Arkistoitu (ei näy kirjausnäkymässä, historia säilyy)
     </label>
+    <label class="hint" style="display:flex;align-items:center;gap:.5rem;margin-top:.75rem">
+      <input type="checkbox" id="edit-cat-ask-description" ${cat.ask_description ? 'checked' : ''}
+             style="width:auto;min-height:auto">
+      Kysy kuvaus pikakomennossa (näkyy pikakomennon valikossa muodossa "${escapeHtml(cat.name)} (kuvaus)")
+    </label>
     <div id="edit-cat-error" class="alert alert-error hidden" role="alert"></div>
     <div class="btn-row">
       <button type="button" class="btn btn-secondary" data-cancel>Peruuta</button>
@@ -119,6 +124,7 @@ function openEditModal(categoryId) {
         name,
         color: sheet.querySelector('#edit-cat-color').value,
         archived: sheet.querySelector('#edit-cat-archived').checked,
+        askDescription: sheet.querySelector('#edit-cat-ask-description').checked,
       });
       setState({
         categories: state.categories.map((c) => (c.id === cat.id ? updated : c)),

@@ -28,6 +28,11 @@ create unique index if not exists categories_user_name_uniq
 create index if not exists categories_user_sort_idx
   on public.categories (user_id, sort_order, created_at);
 
+-- Pikakomento kysyy kuvauksen, kun kayttaja valitsee merkityn kategorian.
+-- (Lisatty v1.7.0; "add column if not exists" pitaa skriptin idempotenttina.)
+alter table public.categories
+  add column if not exists ask_description boolean not null default false;
+
 -- ------------------------------------------------------------
 --  Transaktiot (kulut)
 -- ------------------------------------------------------------
@@ -291,6 +296,17 @@ begin
     and lower(btrim(name)) = lower(btrim(coalesce(p_category, '')))
     and not archived;
 
+  -- Pikakomennon valikossa kuvauksen kysyvat kategoriat nakyvat muodossa
+  -- "Nimi (kuvaus)"; poistetaan merkinta ja haetaan uudelleen.
+  if not found then
+    select * into v_category
+    from public.categories
+    where user_id = v_token.user_id
+      and lower(btrim(name)) = lower(btrim(regexp_replace(
+            coalesce(p_category, ''), '\s*\(kuvaus\)\s*$', '', 'i')))
+      and not archived;
+  end if;
+
   if not found then
     return jsonb_build_object('ok', false,
       'error', format('Kategoriaa "%s" ei löydy', coalesce(p_category, '')),
@@ -372,7 +388,9 @@ begin
       'message', 'Virhe: tuntematon laitetunniste');
   end if;
 
-  select coalesce(jsonb_agg(name order by sort_order, created_at), '[]'::jsonb)
+  select coalesce(jsonb_agg(
+           case when ask_description then name || ' (kuvaus)' else name end
+           order by sort_order, created_at), '[]'::jsonb)
   into v_names
   from public.categories
   where user_id = v_token.user_id and not archived;

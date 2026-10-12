@@ -227,6 +227,15 @@ Tietokantaan tallennetaan vain tunnisteen SHA-256-tiiviste (`device_tokens.token
 tunniste arvotaan selaimessa ja näytetään kerran. Tunnisteella voi vain lisätä kuluja — ei
 lukea, muokata tai poistaa mitään. Poisto asetuksista katkaisee pääsyn välittömästi.
 
+### Kuvauksen kysyminen kategoriakohtaisesti
+
+Kategorian muokkausikkunassa on rasti *Kysy kuvaus pikakomennossa*
+(`categories.ask_description`). Merkityt kategoriat näkyvät asetusten listassa merkinnällä
+*(kuvaus)*, ja `list_expense_categories` palauttaa ne muodossa `Nimi (kuvaus)`. Pikakomento
+kysyy kuvauksen, jos valittu kategoria sisältää tekstin `(kuvaus)`; `log_expense` poistaa
+merkinnän ennen kategorian hakua. Asetus kulkee mukana JSON-varmuuskopiossa. Ohje
+pikakomennon muuttamiseen: [PIKAKOMENTO.md](PIKAKOMENTO.md), *Vaihe 2b*.
+
 Pikakomennot eivät voi käyttää sovelluksen kirjautumista, koska Supabasen käyttöoikeustunnus
 vanhenee tunnissa ja päivitystunnus kiertää jokaisella käytöllä.
 
