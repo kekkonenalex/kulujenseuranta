@@ -249,9 +249,19 @@ Tunnisteen luonnissa voi rastittaa *Saa myös lukea kulut ja budjetit*. Tällain
 | `expense_overview(p_token, p_month)` | kuukauden kulut kategorioittain, budjetit, edellisen kuun vertailun ja ennusteen |
 | `list_expenses(p_token, p_from, p_to, p_category, p_limit)` | kirjaukset aikaväliltä, uusin ensin |
 
-Muokata tai poistaa ei voi kukaan tunnisteella. Tavalliset tunnisteet pysyvät
+Muokata ei voi kukaan tunnisteella. Tavalliset tunnisteet pysyvät
 pelkkinä kirjaustunnisteina. Lukuoikeus vaatii, että `supabase-schema.sql`:n osio
 *LUKUOIKEUS* on ajettu (se on idempotentti, ja sen voi ajaa erikseen).
+
+### Kumoaminen (Otso-avustaja)
+
+Otso kirjaa varmat Apple Pay -ostot itse ja antaa jokaiselle Kumoa-napin. Osio
+*KUMOAMINEN* (idempotentti, ajettavissa erikseen) lisää kirjaukseen tiedon sen
+tehneestä tunnisteesta, saa `log_expense`-funktion palauttamaan kirjauksen id:n ja
+lisää funktion `undo_expense(p_token, p_id)`. Se poistaa vain saman tunnisteen
+viikon sisällä tekemän kirjauksen: sovelluksessa tai pikakomennolla tehtyihin
+kirjauksiin se ei koske. Ennen osion ajamista Otson Kumoa kertoo, ettei kirjausta
+voi poistaa, ja neuvoo korjaamaan sen sovelluksessa.
 
 ## Varmuuskopio
 

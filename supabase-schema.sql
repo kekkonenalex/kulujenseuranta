@@ -600,6 +600,183 @@ $fn$;
 grant execute on function public.expense_overview(text, text) to anon, authenticated;
 grant execute on function public.list_expenses(text, date, date, text, integer) to anon, authenticated;
 
+-- ============================================================
+--  KUMOAMINEN (Otso-avustaja, 28.10.2026)
+--
+--  Otso kirjaa varmat Apple Pay -ostot itse ja antaa niille
+--  Kumoa-napin. Kirjaus muistaa nyt, mika laitetunniste sen teki,
+--  ja log_expense palauttaa kirjauksen id:n. undo_expense poistaa
+--  VAIN kirjauksen, jonka sama tunniste on tehnyt, ja vain viikon
+--  sisalla: sovelluksessa tehtyihin kirjauksiin se ei koske.
+--
+--  Taman osion voi ajaa erikseen: se on idempotentti. Se korvaa
+--  ylempana maaritellyn log_expense-funktion (sama toiminta, ja
+--  lisaksi tunniste ja id). Pikakomentoon tama ei vaikuta.
+-- ============================================================
+
+alter table public.transactions add column if not exists device_token_id uuid
+  references public.device_tokens (id) on delete set null;
+
+create or replace function public.log_expense(
+  p_token       text,
+  p_amount      numeric,
+  p_category    text,
+  p_description text default null,
+  p_occurred_on date default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $fn$
+declare
+  v_hash     text;
+  v_token    public.device_tokens%rowtype;
+  v_category public.categories%rowtype;
+  v_id       uuid;
+  v_cents    integer;
+  v_date     date;
+  v_month    text;
+  v_spent    integer;
+  v_budget   integer;
+  v_left     integer;
+  v_message  text;
+begin
+  if p_token is null or length(p_token) < 20 then
+    return jsonb_build_object('ok', false, 'error', 'Virheellinen laitetunniste',
+      'message', 'Virhe: laitetunniste puuttuu tai on liian lyhyt');
+  end if;
+
+  v_hash := encode(digest(p_token, 'sha256'), 'hex');
+
+  select * into v_token from public.device_tokens where token_hash = v_hash;
+  if not found then
+    return jsonb_build_object('ok', false, 'error', 'Tuntematon laitetunniste',
+      'message', 'Virhe: tuntematon laitetunniste — luo uusi sovelluksen asetuksista');
+  end if;
+
+  v_cents := round(p_amount * 100);
+  if v_cents is null or v_cents <= 0 or v_cents > 100000000 then
+    return jsonb_build_object('ok', false, 'error', 'Summan pitää olla suurempi kuin nolla',
+      'message', 'Virhe: summan pitää olla suurempi kuin nolla');
+  end if;
+
+  v_date  := coalesce(p_occurred_on, current_date);
+  v_month := to_char(v_date, 'YYYY-MM');
+
+  select * into v_category
+  from public.categories
+  where user_id = v_token.user_id
+    and lower(btrim(name)) = lower(btrim(coalesce(p_category, '')))
+    and not archived;
+
+  if not found then
+    select * into v_category
+    from public.categories
+    where user_id = v_token.user_id
+      and lower(btrim(name)) = lower(btrim(regexp_replace(
+            coalesce(p_category, ''), '\s*\(kuvaus\)\s*$', '', 'i')))
+      and not archived;
+  end if;
+
+  if not found then
+    return jsonb_build_object('ok', false,
+      'error', format('Kategoriaa "%s" ei löydy', coalesce(p_category, '')),
+      'message', format('Virhe: kategoriaa "%s" ei löydy', coalesce(p_category, '')));
+  end if;
+
+  insert into public.transactions (user_id, category_id, amount_cents, occurred_on, description, device_token_id)
+  values (
+    v_token.user_id,
+    v_category.id,
+    v_cents,
+    v_date,
+    nullif(btrim(coalesce(p_description, '')), ''),
+    v_token.id
+  )
+  returning id into v_id;
+
+  update public.device_tokens set last_used_at = now() where id = v_token.id;
+
+  select coalesce(sum(amount_cents), 0) into v_spent
+  from public.transactions
+  where user_id = v_token.user_id
+    and category_id = v_category.id
+    and to_char(occurred_on, 'YYYY-MM') = v_month;
+
+  select amount_cents into v_budget
+  from public.budgets
+  where category_id = v_category.id and year_month = v_month;
+  if v_budget is null then
+    select amount_cents into v_budget
+    from public.budgets
+    where category_id = v_category.id and year_month is null;
+  end if;
+
+  v_message := format('Kirjattu %s · %s', public.fmt_eur(v_cents), v_category.name);
+  if v_budget is not null then
+    v_left := v_budget - v_spent;
+    if v_left >= 0 then
+      v_message := v_message || format(' — budjetista jäljellä %s', public.fmt_eur(v_left));
+    else
+      v_message := v_message || format(' — budjetti ylittynyt %s', public.fmt_eur(-v_left));
+    end if;
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'id', v_id,
+    'message', v_message,
+    'category', v_category.name,
+    'amount_cents', v_cents,
+    'occurred_on', v_date,
+    'month_spent_cents', v_spent,
+    'budget_cents', v_budget,
+    'remaining_cents', case when v_budget is null then null else v_budget - v_spent end
+  );
+end;
+$fn$;
+
+-- Kirjauksen poisto sen tehneella tunnisteella, viikon sisalla.
+create or replace function public.undo_expense(p_token text, p_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $fn$
+declare
+  v_token public.device_tokens%rowtype;
+  v_row   public.transactions%rowtype;
+begin
+  if p_token is null or length(p_token) < 20 then
+    return jsonb_build_object('ok', false, 'message', 'Virhe: laitetunniste puuttuu tai on liian lyhyt');
+  end if;
+  select * into v_token from public.device_tokens
+  where token_hash = encode(digest(p_token, 'sha256'), 'hex');
+  if not found then
+    return jsonb_build_object('ok', false, 'message', 'Virhe: tuntematon laitetunniste');
+  end if;
+
+  delete from public.transactions
+  where id = p_id
+    and user_id = v_token.user_id
+    and device_token_id = v_token.id
+    and created_at > now() - interval '7 days'
+  returning * into v_row;
+  if not found then
+    return jsonb_build_object('ok', false,
+      'message', 'Virhe: kirjausta ei löydy (vain tällä tunnisteella viikon sisällä tehdyn voi kumota)');
+  end if;
+
+  update public.device_tokens set last_used_at = now() where id = v_token.id;
+  return jsonb_build_object('ok', true, 'amount_cents', v_row.amount_cents,
+    'message', format('Poistettu %s', public.fmt_eur(v_row.amount_cents)));
+end;
+$fn$;
+
+grant execute on function public.log_expense(text, numeric, text, text, date) to anon, authenticated;
+grant execute on function public.undo_expense(text, uuid) to anon, authenticated;
+
 -- ------------------------------------------------------------
 --  VALMIS. Ei valmiita kategorioita - luot ne itse sovelluksessa.
 -- ------------------------------------------------------------
