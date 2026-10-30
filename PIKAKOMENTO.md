@@ -24,7 +24,7 @@ API-avain on julkinen eikä ole salaisuus — se on sama joka on sovelluksen koo
 
 ## Vaihe 1: luo laitetunniste
 
-1. Avaa sovellus: https://kekkonenalex.github.io/kulujenseuranta/
+1. Avaa sovellus
 2. **Asetukset → Pikakomento (iPhone)**
 3. Kirjoita laitteen nimi (esim. `iPhone 14`) ja paina **Luo**
 4. Tunniste näytetään **vain kerran**. Paina *Kopioi leikepöydälle*.
