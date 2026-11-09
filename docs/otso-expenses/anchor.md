@@ -59,3 +59,14 @@ the Otso app. Otso then lives *inside* it, and the redesign makes it a clear sib
 
 - 9 Nov: the scan's bugs (UTC today, the `(kuvaus)` filter, the missing `id`, future months) go to the council
   as candidates like any other idea, not as automatic fixes.
+- 10 Nov, Alex:
+  - Look **A Kulta** (amber rays). Accepted all three reversals:
+    - Ask Otso moves to build 2;
+    - live warnings and tap questions stay in Telegram;
+    - the app opens on Month.
+  - Defaults accepted:
+    - the Finnish category names stay;
+    - the GitHub repo and Pages path stay;
+    - no staging database: a contract test runs before and after each SQL paste;
+    - no Web Push in build 1.
+- Build 1 = the 31 approved ids in verdict.md, in its four slices, on branch `otso-expenses`.

@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- A local preview of the app on a fake database with example data: for checking the screens without
+     signing in to the real one. Serve the repo (python -m http.server) and open /tools/preview.html.
+     Nothing here reaches Supabase: window.supabase is replaced before the app starts. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title>Otso - Expenses (preview)</title>
+  <base href="../">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <script src="tools/fake-supabase.js"></script>
+  <script>
+    // The page's body, as index.html has it (fetched so the two never drift apart).
+    const html = new XMLHttpRequest();
+    html.open('GET', 'index.html', false);
+    html.send();
+    const doc = new DOMParser().parseFromString(html.responseText, 'text/html');
+    doc.querySelectorAll('script').forEach((s) => s.remove());
+    document.body.insertAdjacentHTML('beforeend', doc.body.innerHTML);
+  </script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

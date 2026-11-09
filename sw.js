@@ -1,13 +1,13 @@
 /* ============================================================
-   Service worker: cachettaa sovelluksen kuoren, jotta sovellus
-   avautuu nopeasti ja nakyy myos huonolla yhteydella.
+   Service worker: keeps the app's shell, so it opens at once and shows even on a bad connection.
+   Supabase's answers are never cached: the data is always fresh, and saving needs the network.
 
-   HUOM: Supabase-API-kutsuja ei cacheta koskaan - data on aina
-   tuoretta ja v1 vaatii verkon tallentamiseen.
+   On every release, VERSION here and APP_VERSION in js/config.js go up together, and every file the
+   app loads is in SHELL.
    ============================================================ */
 
-const VERSION = '1.7.0';
-const CACHE = `kulut-shell-v${VERSION}`;
+const VERSION = '2.0.0';
+const CACHE = `otso-expenses-v${VERSION}`;
 
 const SHELL = [
   './',
@@ -19,33 +19,35 @@ const SHELL = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-512-maskable.png',
+  './fonts/schibsted-grotesk-600-latin.woff2',
+  './fonts/schibsted-grotesk-700-latin.woff2',
+  './fonts/atkinson-hyperlegible-400-latin.woff2',
+  './fonts/atkinson-hyperlegible-700-latin.woff2',
   './js/app.js',
   './js/config.js',
   './js/db.js',
   './js/export.js',
   './js/format.js',
+  './js/icons.js',
   './js/state.js',
-  './js/ui-auth.js',
-  './js/ui-budget.js',
-  './js/ui-categories.js',
   './js/ui-common.js',
-  './js/ui-entry.js',
-  './js/ui-summary.js',
-  './js/ui-tokens.js',
-  './js/ui-transactions.js',
+  './js/ui-expenses.js',
+  './js/ui-log.js',
+  './js/ui-month.js',
+  './js/ui-otso.js',
+  './js/ui-settings.js',
 ];
 
-// Kirjastot CDN:sta - cachetetaan jotta sovellus kaynnistyy myos
-// hetkellisen katkon aikana.
+// The pinned libraries (checked against their hashes by the page): kept, so the app starts during a
+// short outage too.
 const CDN_HOSTS = ['cdn.jsdelivr.net'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
-    // Yksi puuttuva tiedosto ei saa kaataa koko asennusta.
+    // One missing file mustn't stop the install.
     await Promise.all(SHELL.map(async (url) => {
-      try { await cache.add(new Request(url, { cache: 'reload' })); }
-      catch (err) { console.warn('SW: ei saatu cacheen', url, err); }
+      try { await cache.add(new Request(url, { cache: 'reload' })); } catch (err) { console.warn('SW: not cached', url, err); }
     }));
     self.skipWaiting();
   })());
@@ -62,40 +64,27 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;
-
   const url = new URL(request.url);
   const sameOrigin = url.origin === self.location.origin;
-  const isCdn = CDN_HOSTS.includes(url.hostname);
+  if (!sameOrigin && !CDN_HOSTS.includes(url.hostname)) return; // (Supabase: straight to the network)
 
-  if (!sameOrigin && !isCdn) return; // esim. Supabase -> suoraan verkkoon
-
-  // Stale-while-revalidate: vastaa cachesta heti ja paivita taustalla.
+  // Stale-while-revalidate: answer from the cache at once, refresh it in the background.
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const cached = await cache.match(request);
-
     const network = fetch(request).then((response) => {
       if (response && response.ok && (response.type === 'basic' || response.type === 'cors')) {
         cache.put(request, response.clone()).catch(() => {});
       }
       return response;
     }).catch(() => null);
-
-    if (cached) {
-      network.catch(() => {});
-      return cached;
-    }
-
+    if (cached) { network.catch(() => {}); return cached; }
     const response = await network;
     if (response) return response;
-
     if (request.mode === 'navigate') {
       const shell = await cache.match('./index.html');
       if (shell) return shell;
     }
-    return new Response('Ei verkkoyhteyttä', {
-      status: 503,
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    });
+    return new Response('No connection', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   })());
 });

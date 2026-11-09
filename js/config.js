@@ -1,18 +1,16 @@
 // ============================================================
-//  ASETUKSET - tama on ainoa tiedosto jota sinun tarvitsee muokata.
+//  SETTINGS: the only file to fill in for a new Supabase project.
 //
-//  Loydat molemmat arvot Supabase-projektistasi:
-//    Project Settings -> API
-//      * Project URL          -> SUPABASE_URL
-//      * Project API keys -> anon public  -> SUPABASE_ANON_KEY
+//  Both values are in the Supabase project: Project Settings -> API
+//    Project URL                        -> SUPABASE_URL
+//    Project API keys -> publishable    -> SUPABASE_ANON_KEY
 //
-//  Anon-avain on tarkoitettu selaimeen ja on julkinen tieto.
-//  Dataa suojaavat RLS-politiikat, jotka supabase-schema.sql luo.
-//  ALA koskaan laita tahan service_role -avainta.
+//  The publishable key is meant for the browser and isn't a secret: the data is protected by the
+//  Row Level Security policies in supabase-schema.sql. NEVER put the service_role key here.
 // ============================================================
 
 export const SUPABASE_URL = 'https://wqibkufakgdmzcovmdos.supabase.co';
 export const SUPABASE_ANON_KEY = 'sb_publishable_f1A4zFIkN6pwnm8MRyk_1g_Dbt194dP';
 
-// Nakyy asetuksissa ja service workerin cache-nimessa.
-export const APP_VERSION = '1.7.0';
+// Shown in Settings, and in the service worker's cache name (sw.js VERSION must match).
+export const APP_VERSION = '2.0.0';
