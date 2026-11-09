@@ -1,0 +1,521 @@
+<meta charset="utf-8">
+<title>Otso Expenses looks</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=Schibsted+Grotesk:wght@500;600;700;800&display=swap">
+<style>
+/* Layout: one column of four looks; each look is a header row, then the logo and two phone screens side by side
+   (wrapping to one column on a phone). Single dark look on purpose: the app is true black. */
+:root {
+  --page: #000000;
+  --page-text: #ECEEEA;
+  --page-muted: #8E948F;
+  --page-line: #1F2321;
+  --red: #DE2A27;          /* over budget, in every look: red means "too much", as in Otso Markets */
+  --red-text: #FF5A52;     /* the same red, lighter for small text on black */
+  --display: "Schibsted Grotesk", "Atkinson Hyperlegible", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--page); color: var(--page-text); font-family: var(--body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 72px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 72px; }
+.intro { display: grid; gap: 12px; max-width: 64ch; }
+.eyebrow { font-family: var(--display); font-weight: 600; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--page-muted); }
+h1 { font-family: var(--display); font-weight: 800; font-size: clamp(30px, 5vw, 46px); line-height: 1.05; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+.intro p { margin: 0; color: #C7CCC8; }
+.intro .note { color: var(--page-muted); font-size: 13px; }
+
+/* -- a look ------------------------------------------------------------------------------------------- */
+.look { display: grid; gap: 24px; border-top: 1px solid var(--page-line); padding-top: 28px; }
+.look-head { display: grid; grid-template-columns: auto 1fr; gap: 6px 18px; align-items: baseline; }
+.look-letter { font-family: var(--display); font-weight: 800; font-size: 40px; line-height: 1; color: var(--accent); grid-row: span 2; }
+.look-name { font-family: var(--display); font-weight: 700; font-size: 24px; margin: 0; letter-spacing: -0.01em; }
+.look-name span { color: var(--page-muted); font-weight: 600; }
+.look-what { margin: 0; color: #C7CCC8; max-width: 70ch; }
+.look-meta { grid-column: 2; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; font-size: 13px; color: var(--page-muted); }
+.swatches { display: flex; gap: 6px; align-items: center; }
+.swatches i { width: 18px; height: 18px; border-radius: 5px; display: block; border: 1px solid #2A2E2C; }
+.look-row { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+
+.brand { width: 250px; max-width: 100%; display: grid; gap: 18px; align-content: start; }
+.brand .icon-big { width: 148px; height: 148px; }
+.brand .icons { display: flex; gap: 14px; align-items: end; }
+.brand .icon-small { width: 52px; height: 52px; }
+.brand .icon-tiny { width: 28px; height: 28px; }
+.wordmark { display: grid; gap: 2px; }
+.signature { font-size: 13px; color: var(--page-muted); border-left: 2px solid var(--accent); padding-left: 10px; }
+.signature b { color: var(--page-text); font-weight: 700; }
+
+/* -- the phone ---------------------------------------------------------------------------------------- */
+.phone {
+  width: 280px; max-width: 100%; height: 590px; border-radius: 40px; border: 1px solid #2B2F2D; background: var(--bg);
+  position: relative; overflow: hidden; color: var(--text); font-family: var(--body); display: flex; flex-direction: column;
+}
+.phone figcaption { display: none; }
+.status { display: flex; justify-content: space-between; padding: 14px 24px 0; font: 600 12px var(--display); color: var(--text); position: relative; z-index: 2; }
+.screen { flex: 1; padding: 14px 18px 0; display: flex; flex-direction: column; gap: 14px; position: relative; z-index: 1; min-height: 0; }
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); padding: 0 6px 18px; position: relative; z-index: 2; background: var(--bg); }
+.tabs span { text-align: center; font: 600 11px var(--display); color: var(--muted); padding-top: 10px; position: relative; }
+.tabs span.on { color: var(--text); font-weight: 700; }
+.tabs span.on::before { content: ""; position: absolute; top: -1px; left: 28%; right: 28%; height: 2px; background: var(--accent); border-radius: 2px; }
+.label { font: 600 11px var(--display); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.title-row { display: flex; justify-content: space-between; align-items: baseline; }
+.title-row h3 { margin: 0; font: 700 22px var(--display); letter-spacing: -0.01em; }
+.title-row small { color: var(--muted); font-size: 12px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* the aurora behind a screen's top: thin vertical rays, brighter to the right, fading down. Never a glow. */
+.rays { position: absolute; inset: 0 0 auto 0; height: 190px; z-index: 0; pointer-events: none;
+  background: repeating-linear-gradient(90deg, var(--ray-a) 0 1.5px, transparent 1.5px 7px);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,.75), transparent 92%), linear-gradient(to right, rgba(0,0,0,.25), #000);
+  -webkit-mask-composite: source-in; mask-image: linear-gradient(to bottom, rgba(0,0,0,.75), transparent 92%), linear-gradient(to right, rgba(0,0,0,.25), #000);
+  mask-composite: intersect; opacity: .32; }
+.rays.two { background: repeating-linear-gradient(90deg, var(--ray-a) 0 1.5px, transparent 1.5px 7px), linear-gradient(90deg, transparent, transparent); }
+
+.amount { font: 800 54px/1 var(--display); letter-spacing: -0.03em; }
+.amount small { font-size: 26px; font-weight: 700; color: var(--muted); margin-left: 4px; }
+.caret { display: inline-block; width: 2px; height: 44px; background: var(--accent); vertical-align: -4px; margin-left: 3px; }
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip { font: 600 12.5px var(--display); padding: 7px 11px; border-radius: 999px; border: 1px solid var(--line); color: var(--text); background: transparent; }
+.chip.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.field { border-bottom: 1px solid var(--line); padding: 8px 0; color: var(--text); font-size: 14px; }
+.field em { color: var(--muted); font-style: normal; font-size: 12px; display: block; }
+.save { margin-top: auto; background: var(--accent); color: var(--on-accent); font: 700 15px var(--display); text-align: center; padding: 13px; border-radius: var(--radius); }
+.otso-line { display: flex; gap: 10px; align-items: center; font-size: 12.5px; padding: 10px 0 12px; border-top: 1px solid var(--line); color: var(--soft); }
+.otso-line svg { width: 22px; height: 22px; flex: none; }
+.otso-line b { color: var(--text); }
+.otso-line .undo { margin-left: auto; font: 700 12px var(--display); color: var(--accent-text); }
+
+.big { font: 800 40px/1 var(--display); letter-spacing: -0.025em; }
+.sub { color: var(--muted); font-size: 12.5px; }
+.read { border-left: 2px solid var(--accent); padding: 2px 0 2px 12px; font-size: 13px; color: var(--soft); display: grid; gap: 4px; }
+.read b { font: 700 11px var(--display); letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent-text); }
+.rows { display: grid; gap: 11px; }
+.row { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; font-size: 13px; }
+.row .amt { font-variant-numeric: tabular-nums; font-weight: 700; }
+.row .amt small { color: var(--muted); font-weight: 400; }
+.row .bar { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: var(--track); position: relative; overflow: hidden; }
+.row .bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 3px; }
+.row.over .amt { color: var(--red-text); }
+.row.over .bar i { background: var(--red); }
+.money-line { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted); }
+.money-line b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* the month as rays: one ray a day, its height the day's spend (look A's signature) */
+.dayrays { display: flex; align-items: flex-end; gap: 3px; height: 58px; }
+.dayrays i { flex: 1; border-radius: 2px 2px 0 0; background: linear-gradient(to top, var(--accent2), var(--accent)); min-height: 2px; }
+.dayrays i.later { background: var(--track); }
+.dayrays i.today { outline: 1px solid var(--text); outline-offset: 1px; }
+
+/* -- A: Kulta (amber rays) ------------------------------------------------------------------------------ */
+.a { --bg: #000; --text: #F3EFE7; --soft: #D8D1C4; --muted: #948C7E; --line: #262320; --track: #1E1B17;
+  --accent: #F5B544; --accent2: #D9772F; --accent-text: #F5B544; --on-accent: #120C02; --ray-a: #F5B544; --radius: 14px; }
+
+/* -- B: Kuitti (the receipt) --------------------------------------------------------------------------- */
+.b { --bg: #000; --text: #F2EFE6; --soft: #CFCBC0; --muted: #8F8B82; --line: #2A2926; --track: #2A2926;
+  --accent: #55F496; --accent2: #33C2E9; --accent-text: #6FF5A8; --on-accent: #04130A; --ray-a: #55F496; --radius: 4px;
+  --paper: #EEEAE0; --ink: #151513; --ink-soft: #5D5A52; }
+.b .slip { background: var(--paper); color: var(--ink); padding: 16px 16px 26px; display: grid; gap: 10px; font-family: var(--mono);
+  -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 12px 100%;
+          mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 12px 100%; position: relative; }
+.b .slip::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 4px; background: linear-gradient(90deg, #55F496, #33C2E9); }
+.b .slip .label { color: var(--ink-soft); font-family: var(--mono); letter-spacing: 0.08em; }
+.b .slip .amount { font: 600 44px/1 var(--mono); letter-spacing: -0.04em; color: var(--ink); }
+.b .slip .amount small { color: var(--ink-soft); font-size: 22px; }
+.b .slip .caret { background: var(--ink); height: 36px; }
+.b .line-item { display: flex; gap: 6px; font-size: 12.5px; align-items: baseline; }
+.b .line-item .dots { flex: 1; border-bottom: 1px dotted #9A968C; transform: translateY(-3px); }
+.b .line-item.on { font-weight: 600; }
+.b .line-item.on::before { content: ">"; margin-right: 2px; }
+.b .line-item.over { color: #B3201D; font-weight: 600; }
+.b .rule { border-top: 1px dashed #9A968C; }
+.b .total { display: flex; justify-content: space-between; font: 600 15px var(--mono); }
+.b .save { font-family: var(--mono); letter-spacing: 0.06em; text-transform: uppercase; }
+.b .read { font-family: var(--body); }
+
+/* -- C: Kynsi (the claw tally) --------------------------------------------------------------------------- */
+.c { --bg: #000; --text: #EDF1EC; --soft: #C9D2CD; --muted: #8D9590; --line: #1E2320; --track: #151A17;
+  --accent: #46F0A2; --accent2: #3CCFE6; --accent-text: #46F0A2; --on-accent: #00140A; --ray-a: #3CCFE6; --radius: 999px; }
+.c .tally { display: flex; gap: 3px; height: 14px; grid-column: 1 / -1; }
+.c .tally i { width: 3px; border-radius: 2px; background: linear-gradient(to bottom, var(--accent), var(--accent2)); transform: skewX(-8deg); }
+.c .tally i.off { background: var(--track); }
+.c .tally i.red { background: var(--red); }
+.c .tally .gap { width: 5px; }
+.c .amount { font-weight: 700; }
+
+/* -- D: Raanu (the woven stripe) ------------------------------------------------------------------------- */
+.d { --bg: #000; --text: #EFEAE0; --soft: #D2CCBF; --muted: #938C80; --line: #25221E; --track: #1B1916;
+  --accent: #E7DFCF; --accent2: #C98F3A; --accent-text: #E2B266; --on-accent: #12100C; --radius: 10px;
+  --w1: #E7DFCF; --w2: #C98F3A; --w3: #A4492A; --w4: #56626B; }
+.d .weave { position: absolute; inset: 0 0 auto 0; height: 10px; z-index: 0;
+  background: linear-gradient(to bottom, var(--w2) 0 3px, var(--w1) 3px 5px, var(--w3) 5px 8px, var(--w4) 8px 10px); }
+.d .status { padding-top: 18px; }
+.d .stripe-bar { grid-column: 1 / -1; height: 8px; display: flex; gap: 2px; }
+.d .stripe-bar i { height: 100%; border-radius: 1px; }
+.d .row .bar { display: none; }
+.d .chip.on { background: var(--w2); border-color: var(--w2); }
+.d .save { background: var(--w1); }
+
+@media (max-width: 640px) {
+  .look-head { grid-template-columns: 1fr; }
+  .look-letter { grid-row: auto; font-size: 32px; }
+  .look-meta { grid-column: 1; }
+  .look-row { gap: 22px; }
+  .phone { width: 100%; max-width: 330px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .caret { animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+}
+</style>
+
+<!-- shared drawings: the bear's outline (from Otso's icon), used by the logos as a clip -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <clipPath id="bear" clipPathUnits="userSpaceOnUse">
+      <circle cx="24" cy="26" r="13"/><circle cx="76" cy="26" r="13"/>
+      <path d="M50 22c22 0 36 14 36 33 0 13-6 22-15 27l-7 4c-4 3-9 4-14 4s-10-1-14-4l-7-4C20 77 14 68 14 55c0-19 14-33 36-33z"/>
+    </clipPath>
+    <linearGradient id="amberRay" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F7C25A"/><stop offset="1" stop-color="#D9772F" stop-opacity=".55"/>
+    </linearGradient>
+    <linearGradient id="otsoRay" gradientUnits="userSpaceOnUse" x1="20" y1="10" x2="84" y2="92">
+      <stop offset="0" stop-color="#55F496"/><stop offset="1" stop-color="#33C2E9"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<main class="wrap">
+  <header class="intro">
+    <span class="eyebrow">Otso - Expenses · design directions</span>
+    <h1>Four looks for the expense app. Pick one.</h1>
+    <p>All four keep what makes it Otso's: true black, the bear, and Otso's two typefaces, plus a mono face in one
+      look. Each has its own colour and its own logo, so it reads as a sibling app, not another tab of the Otso app.
+      Over budget is red in every look, as falling is in Otso Markets.</p>
+    <p class="note">Each look shows the same two screens: logging an expense, and the month. The numbers are
+      examples, not your data.</p>
+  </header>
+
+  <!-- ================================================================== A -->
+  <section class="look a" aria-labelledby="a-name">
+    <div class="look-head">
+      <span class="look-letter">A</span>
+      <h2 class="look-name" id="a-name">Kulta <span>· amber rays</span></h2>
+      <p class="look-what">Otso's aurora, recoloured for money: amber into copper. The bear is drawn in rays, as on
+        Otso's mark. The month is drawn the same way: one ray a day, as tall as that day's spending.</p>
+      <div class="look-meta">
+        <span class="swatches" aria-label="Palette: black, amber, copper, warm white, red for over budget"><i style="background:#000"></i><i style="background:#F5B544"></i><i style="background:#D9772F"></i><i style="background:#F3EFE7"></i><i style="background:#DE2A27"></i></span>
+        <span>Schibsted Grotesk numbers · Atkinson Hyperlegible text</span>
+      </div>
+    </div>
+    <div class="look-row">
+      <div class="brand">
+        <svg class="icon-big" viewBox="0 0 100 100" role="img" aria-label="Kulta logo: the bear drawn in amber rays">
+          <rect width="100" height="100" rx="22" fill="#000"/>
+          <g transform="translate(9 8) scale(.82)">
+            <g clip-path="url(#bear)" fill="url(#amberRay)">
+              <rect x="10" y="0" width="2.4" height="100"/><rect x="15" y="0" width="2.4" height="100"/><rect x="20" y="0" width="2.4" height="100"/><rect x="25" y="0" width="2.4" height="100"/><rect x="30" y="0" width="2.4" height="100"/><rect x="35" y="0" width="2.4" height="100"/><rect x="40" y="0" width="2.4" height="100"/><rect x="45" y="0" width="2.4" height="100"/><rect x="50" y="0" width="2.4" height="100"/><rect x="55" y="0" width="2.4" height="100"/><rect x="60" y="0" width="2.4" height="100"/><rect x="65" y="0" width="2.4" height="100"/><rect x="70" y="0" width="2.4" height="100"/><rect x="75" y="0" width="2.4" height="100"/><rect x="80" y="0" width="2.4" height="100"/><rect x="85" y="0" width="2.4" height="100"/>
+            </g>
+            <path d="M43 62h14l-7 8z" fill="#000"/>
+          </g>
+        </svg>
+        <div class="icons">
+          <svg class="icon-small" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#000" stroke="#2B2F2D"/><g transform="translate(9 8) scale(.82)"><g clip-path="url(#bear)" fill="url(#amberRay)"><rect x="12" width="5" height="100"/><rect x="22" width="5" height="100"/><rect x="32" width="5" height="100"/><rect x="42" width="5" height="100"/><rect x="52" width="5" height="100"/><rect x="62" width="5" height="100"/><rect x="72" width="5" height="100"/><rect x="82" width="5" height="100"/></g><path d="M43 62h14l-7 8z" fill="#000"/></g></svg>
+          <svg class="icon-tiny" viewBox="0 0 100 100" aria-hidden="true"><g transform="translate(9 8) scale(.82)"><g clip-path="url(#bear)"><rect width="100" height="100" fill="#F5B544"/></g><path d="M43 62h14l-7 8z" fill="#000"/></g></svg>
+        </div>
+        <div class="wordmark">
+          <span style="font:800 26px var(--display);letter-spacing:-0.02em">Otso <span style="color:#F5B544">Expenses</span></span>
+        </div>
+        <p class="signature"><b>Signature:</b> the month as rays, one per day. The aurora becomes the chart.</p>
+      </div>
+
+      <figure class="phone" aria-label="Kulta: logging an expense">
+        <div class="rays"></div>
+        <div class="status"><span>08:14</span><span>5G</span></div>
+        <div class="screen">
+          <div class="title-row"><h3>Log</h3><small>Mon 9 Nov</small></div>
+          <div><div class="amount num">12,40<small>€</small><span class="caret"></span></div></div>
+          <div style="display:grid;gap:8px"><span class="label">Category</span>
+            <div class="chips"><span class="chip on">Groceries</span><span class="chip">Restaurants</span><span class="chip">Coffee &amp; snacks</span><span class="chip">Transport</span><span class="chip">More</span></div></div>
+          <div class="chips"><span class="chip on">Today</span><span class="chip">Yesterday</span><span class="chip">Pick a day</span></div>
+          <div class="field"><em>Note</em>Prisma Kamppi</div>
+          <div class="save">Save 12,40 €</div>
+          <div class="otso-line">
+            <svg viewBox="0 0 100 100" aria-hidden="true"><g clip-path="url(#bear)"><rect width="100" height="100" fill="#F5B544"/></g><path d="M43 62h14l-7 8z" fill="#000"/></svg>
+            <span>Logged <b>Unicafe 2,80 €</b> to Coffee, 08:12</span><span class="undo">Undo</span>
+          </div>
+        </div>
+        <div class="tabs"><span class="on">Log</span><span>Expenses</span><span>Money</span><span>Otso</span></div>
+      </figure>
+
+      <figure class="phone" aria-label="Kulta: the month">
+        <div class="rays"></div>
+        <div class="status"><span>21:40</span><span>5G</span></div>
+        <div class="screen">
+          <div class="title-row"><h3>November</h3><small>day 9 of 30</small></div>
+          <div style="display:grid;gap:6px"><div class="big num">412,30 €</div><span class="sub">of 1 000 € · on pace for about 1 120 €</span></div>
+          <div class="dayrays" aria-label="Spending per day: the 3rd and the 7th are the tallest">
+            <i style="height:27%"></i><i style="height:8%"></i><i style="height:100%"></i><i style="height:7%"></i><i style="height:15%"></i><i style="height:13%"></i><i style="height:56%"></i><i style="height:38%"></i><i class="today" style="height:22%"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i><i class="later"></i>
+          </div>
+          <div class="read"><b>Otso's read</b>Groceries is 18% above your usual for the 9th: two big Prisma runs, on the 3rd and the 7th. The rest is on pace.</div>
+          <div class="rows">
+            <div class="row"><span>Groceries</span><span class="amt">168,20 <small>/ 400</small></span><span class="bar"><i style="width:42%"></i></span></div>
+            <div class="row"><span>Restaurants</span><span class="amt">96,50 <small>/ 200</small></span><span class="bar"><i style="width:48%"></i></span></div>
+            <div class="row"><span>Transport</span><span class="amt">64,00 <small>/ 64</small></span><span class="bar"><i style="width:100%"></i></span></div>
+            <div class="row over"><span>Energy drinks</span><span class="amt">42,50 <small>/ 30</small></span><span class="bar"><i style="width:100%"></i></span></div>
+          </div>
+          <div class="money-line"><span>Income 1 120 €</span><span>Left this month <b>707,70 €</b></span></div>
+        </div>
+        <div class="tabs"><span>Log</span><span>Expenses</span><span class="on">Money</span><span>Otso</span></div>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ================================================================== B -->
+  <section class="look b" aria-labelledby="b-name">
+    <div class="look-head">
+      <span class="look-letter">B</span>
+      <h2 class="look-name" id="b-name">Kuitti <span>· the receipt</span></h2>
+      <p class="look-what">Every screen is a till receipt on black: paper white, a mono face for the figures, dotted
+        lines out to the amounts, a torn bottom edge. Otso's green-to-teal survives as the strip the printer
+        starts with. The logo is a receipt with the bear's ears.</p>
+      <div class="look-meta">
+        <span class="swatches" aria-label="Palette: black, paper white, ink, Otso green to teal, red"><i style="background:#000"></i><i style="background:#EEEAE0"></i><i style="background:#151513"></i><i style="background:linear-gradient(90deg,#55F496,#33C2E9)"></i><i style="background:#B3201D"></i></span>
+        <span>IBM Plex Mono figures · Atkinson Hyperlegible text</span>
+      </div>
+    </div>
+    <div class="look-row">
+      <div class="brand">
+        <svg class="icon-big" viewBox="0 0 100 100" role="img" aria-label="Kuitti logo: a receipt with bear ears">
+          <rect width="100" height="100" rx="22" fill="#000"/>
+          <circle cx="30" cy="25" r="9" fill="#EEEAE0"/><circle cx="70" cy="25" r="9" fill="#EEEAE0"/>
+          <path d="M24 26h52v52l-4.33 5-4.33-5-4.33 5-4.33-5-4.34 5-4.33-5-4.33 5-4.33-5-4.34 5-4.33-5-4.33 5L24 78z" fill="#EEEAE0"/>
+          <rect x="24" y="26" width="52" height="3" fill="url(#otsoRay)"/>
+          <rect x="31" y="39" width="26" height="3" rx="1.5" fill="#151513"/><rect x="62" y="39" width="7" height="3" rx="1.5" fill="#151513"/>
+          <rect x="31" y="48" width="20" height="3" rx="1.5" fill="#151513"/><rect x="62" y="48" width="7" height="3" rx="1.5" fill="#151513"/>
+          <rect x="31" y="59" width="38" height="1.4" fill="#151513" opacity=".5"/>
+          <rect x="31" y="65" width="14" height="4.5" rx="1.5" fill="#151513"/><rect x="56" y="65" width="13" height="4.5" rx="1.5" fill="#151513"/>
+        </svg>
+        <div class="icons">
+          <svg class="icon-small" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#000" stroke="#2B2F2D"/><circle cx="30" cy="25" r="9" fill="#EEEAE0"/><circle cx="70" cy="25" r="9" fill="#EEEAE0"/><path d="M24 26h52v52l-4.33 5-4.33-5-4.33 5-4.33-5-4.34 5-4.33-5-4.33 5-4.33-5-4.34 5-4.33-5-4.33 5L24 78z" fill="#EEEAE0"/><rect x="24" y="26" width="52" height="4" fill="url(#otsoRay)"/><rect x="31" y="44" width="38" height="5" rx="2" fill="#151513"/><rect x="31" y="58" width="38" height="5" rx="2" fill="#151513"/></svg>
+          <svg class="icon-tiny" viewBox="0 0 100 100" aria-hidden="true"><circle cx="30" cy="25" r="9" fill="#EEEAE0"/><circle cx="70" cy="25" r="9" fill="#EEEAE0"/><path d="M24 26h52v52l-4.33 5-4.33-5-4.33 5-4.33-5-4.34 5-4.33-5-4.33 5-4.33-5-4.34 5-4.33-5-4.33 5L24 78z" fill="#EEEAE0"/></svg>
+        </div>
+        <div class="wordmark">
+          <span style="font:600 22px var(--mono);letter-spacing:0.06em">OTSO</span>
+          <span style="font:500 13px var(--mono);letter-spacing:0.3em;color:#8F8B82">EXPENSES · KUITTI</span>
+        </div>
+        <p class="signature" style="border-color:#55F496"><b>Signature:</b> the torn edge. Every month ends like a receipt, with a total.</p>
+      </div>
+
+      <figure class="phone" aria-label="Kuitti: logging an expense">
+        <div class="status"><span>08:14</span><span>5G</span></div>
+        <div class="screen">
+          <div class="title-row"><h3 style="font-family:var(--mono);font-weight:600;font-size:18px;letter-spacing:.04em">LOG</h3><small style="font-family:var(--mono)">MON 09.11.</small></div>
+          <div class="slip">
+            <span class="label">AMOUNT</span>
+            <div class="amount num">12,40<small> EUR</small><span class="caret"></span></div>
+            <div class="rule"></div>
+            <span class="label">CATEGORY</span>
+            <div class="line-item on"><span>Groceries</span><span class="dots"></span><span>usual</span></div>
+            <div class="line-item"><span>Restaurants</span><span class="dots"></span><span></span></div>
+            <div class="line-item"><span>Coffee &amp; snacks</span><span class="dots"></span><span></span></div>
+            <div class="line-item"><span>Transport</span><span class="dots"></span><span></span></div>
+            <div class="rule"></div>
+            <div class="line-item"><span>DAY</span><span class="dots"></span><span>TODAY</span></div>
+            <div class="line-item"><span>NOTE</span><span class="dots"></span><span>Prisma Kamppi</span></div>
+          </div>
+          <div class="save">Print it · 12,40 €</div>
+          <div class="otso-line">
+            <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="30" cy="25" r="9" fill="#EEEAE0"/><circle cx="70" cy="25" r="9" fill="#EEEAE0"/><path d="M24 26h52v52l-4.33 5-4.33-5-4.33 5-4.33-5-4.34 5-4.33-5-4.33 5-4.33-5-4.34 5-4.33-5-4.33 5L24 78z" fill="#EEEAE0"/></svg>
+            <span>Logged <b>Unicafe 2,80 €</b>, 08:12</span><span class="undo">Undo</span>
+          </div>
+        </div>
+        <div class="tabs"><span class="on">Log</span><span>Expenses</span><span>Money</span><span>Otso</span></div>
+      </figure>
+
+      <figure class="phone" aria-label="Kuitti: the month">
+        <div class="status"><span>21:40</span><span>5G</span></div>
+        <div class="screen">
+          <div class="title-row"><h3 style="font-family:var(--mono);font-weight:600;font-size:18px;letter-spacing:.04em">NOVEMBER</h3><small style="font-family:var(--mono)">DAY 9/30</small></div>
+          <div class="slip">
+            <div class="line-item"><span>Groceries</span><span class="dots"></span><span>168,20</span></div>
+            <div class="line-item"><span>Restaurants</span><span class="dots"></span><span>96,50</span></div>
+            <div class="line-item"><span>Transport</span><span class="dots"></span><span>64,00</span></div>
+            <div class="line-item"><span>Coffee &amp; snacks</span><span class="dots"></span><span>41,10</span></div>
+            <div class="line-item over"><span>Energy drinks</span><span class="dots"></span><span>42,50 !</span></div>
+            <div class="rule"></div>
+            <div class="total"><span>TOTAL</span><span>412,30</span></div>
+            <div class="line-item"><span>BUDGET</span><span class="dots"></span><span>1 000,00</span></div>
+            <div class="line-item"><span>ON PACE FOR</span><span class="dots"></span><span>~1 120</span></div>
+            <div class="line-item"><span>INCOME</span><span class="dots"></span><span>1 120,00</span></div>
+          </div>
+          <div class="read"><b>Otso's read</b>Groceries is 18% above your usual for the 9th: two big Prisma runs. Energy drinks is over its 30 €.</div>
+        </div>
+        <div class="tabs"><span>Log</span><span>Expenses</span><span class="on">Money</span><span>Otso</span></div>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ================================================================== C -->
+  <section class="look c" aria-labelledby="c-name">
+    <div class="look-head">
+      <span class="look-letter">C</span>
+      <h2 class="look-name" id="c-name">Kynsi <span>· the claw tally</span></h2>
+      <p class="look-what">The closest sibling: Otso's own green into teal, rays in teal. The logo is four claw marks
+        and a slash, a tally of five: the bear counting. Budgets are drawn as tally marks too, one mark for every
+        10 €, so you can count what's left.</p>
+      <div class="look-meta">
+        <span class="swatches" aria-label="Palette: black, Otso green, teal, white, red"><i style="background:#000"></i><i style="background:#46F0A2"></i><i style="background:#3CCFE6"></i><i style="background:#EDF1EC"></i><i style="background:#DE2A27"></i></span>
+        <span>Schibsted Grotesk numbers · Atkinson Hyperlegible text</span>
+      </div>
+    </div>
+    <div class="look-row">
+      <div class="brand">
+        <svg class="icon-big" viewBox="0 0 100 100" role="img" aria-label="Kynsi logo: four claw marks crossed by a fifth, a tally">
+          <rect width="100" height="100" rx="22" fill="#000"/>
+          <g fill="none" stroke="url(#otsoRay)" stroke-linecap="round">
+            <path d="M30 22c-2 18-2 38 1 56" stroke-width="6.5"/><path d="M43 20c-2 19-2 40 1 58" stroke-width="6.5"/>
+            <path d="M56 20c-2 19-2 40 1 58" stroke-width="6.5"/><path d="M69 22c-2 18-2 38 1 56" stroke-width="6.5"/>
+            <path d="M20 66C40 52 62 40 82 30" stroke-width="5.5"/>
+          </g>
+        </svg>
+        <div class="icons">
+          <svg class="icon-small" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#000" stroke="#2B2F2D"/><g fill="none" stroke="url(#otsoRay)" stroke-linecap="round" stroke-width="9"><path d="M30 22c-2 18-2 38 1 56"/><path d="M50 20c-2 19-2 40 1 58"/><path d="M70 22c-2 18-2 38 1 56"/><path d="M18 66C40 52 62 40 84 30" stroke-width="7"/></g></svg>
+          <svg class="icon-tiny" viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="#46F0A2" stroke-linecap="round" stroke-width="11"><path d="M30 22c-2 18-2 38 1 56"/><path d="M50 20c-2 19-2 40 1 58"/><path d="M70 22c-2 18-2 38 1 56"/></g></svg>
+        </div>
+        <div class="wordmark">
+          <span style="font:800 26px var(--display);letter-spacing:-0.02em">Otso <span style="font-weight:600;color:#8D9590">Expenses</span></span>
+        </div>
+        <p class="signature"><b>Signature:</b> budgets as tally marks, 10 € a mark. What's left is countable at a glance.</p>
+      </div>
+
+      <figure class="phone" aria-label="Kynsi: logging an expense">
+        <div class="rays"></div>
+        <div class="status"><span>08:14</span><span>5G</span></div>
+        <div class="screen">
+          <div class="title-row"><h3>Log</h3><small>Mon 9 Nov</small></div>
+          <div><div class="amount num">12,40<small>€</small><span class="caret"></span></div></div>
+          <div style="display:grid;gap:8px"><span class="label">Category</span>
+            <div class="chips"><span class="chip on">Groceries</span><span class="chip">Restaurants</span><span class="chip">Coffee &amp; snacks</span><span class="chip">Transport</span><span class="chip">More</span></div></div>
+          <div class="chips"><span class="chip on">Today</span><span class="chip">Yesterday</span><span class="chip">Pick a day</span></div>
+          <div class="field"><em>Note</em>Prisma Kamppi</div>
+          <div class="save">Save</div>
+          <div class="otso-line">
+            <svg viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="url(#otsoRay)" stroke-linecap="round" stroke-width="11"><path d="M30 22c-2 18-2 38 1 56"/><path d="M50 20c-2 19-2 40 1 58"/><path d="M70 22c-2 18-2 38 1 56"/></g></svg>
+            <span>Logged <b>Unicafe 2,80 €</b> to Coffee, 08:12</span><span class="undo">Undo</span>
+          </div>
+        </div>
+        <div class="tabs"><span class="on">Log</span><span>Expenses</span><span>Money</span><span>Otso</span></div>
+      </figure>
+
+      <figure class="phone" aria-label="Kynsi: the month">
+        <div class="rays"></div>
+        <div class="status"><span>21:40</span><span>5G</span></div>
+        <div class="screen">
+          <div class="title-row"><h3>November</h3><small>day 9 of 30</small></div>
+          <div style="display:grid;gap:6px"><div class="big num">412,30 €</div><span class="sub">of 1 000 € · 587,70 € left for 21 days</span></div>
+          <div class="read"><b>Otso's read</b>Groceries is 18% above your usual for the 9th: two big Prisma runs. Energy drinks is over its 30 €.</div>
+          <div class="rows">
+            <div class="row"><span>Groceries</span><span class="amt">232 € left</span>
+              <span class="tally" aria-label="23 of 40 marks left"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i></span></div>
+            <div class="row"><span>Restaurants</span><span class="amt">104 € left</span>
+              <span class="tally" aria-label="10 of 20 marks left"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i></span></div>
+            <div class="row"><span>Coffee &amp; snacks</span><span class="amt">39 € left</span>
+              <span class="tally" aria-label="4 of 8 marks left"><i></i><i></i><i></i><i></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i></span></div>
+            <div class="row over"><span>Energy drinks</span><span class="amt">12,50 € over</span>
+              <span class="tally" aria-label="over by one mark"><i class="red"></i><i class="off"></i><i class="off"></i><i class="off"></i></span></div>
+          </div>
+          <div class="money-line"><span>Income 1 120 €</span><span>Lasts past the 30th</span></div>
+        </div>
+        <div class="tabs"><span>Log</span><span>Expenses</span><span class="on">Money</span><span>Otso</span></div>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ================================================================== D -->
+  <section class="look d" aria-labelledby="d-name">
+    <div class="look-head">
+      <span class="look-letter" style="color:#C98F3A">D</span>
+      <h2 class="look-name" id="d-name">Raanu <span>· the woven stripe</span></h2>
+      <p class="look-what">From the Finnish woven blanket: birch white, ochre, rust and slate in bands of different
+        widths. The bear is cut from the weave. The month is one woven bar, each band a category as wide as its share,
+        so the whole month reads in one line. Warm and handmade, the furthest from a tech app.</p>
+      <div class="look-meta">
+        <span class="swatches" aria-label="Palette: black, birch white, ochre, rust, slate, red"><i style="background:#000"></i><i style="background:#E7DFCF"></i><i style="background:#C98F3A"></i><i style="background:#A4492A"></i><i style="background:#56626B"></i><i style="background:#DE2A27"></i></span>
+        <span>Schibsted Grotesk numbers · Atkinson Hyperlegible text</span>
+      </div>
+    </div>
+    <div class="look-row">
+      <div class="brand" style="--accent:#C98F3A">
+        <svg class="icon-big" viewBox="0 0 100 100" role="img" aria-label="Raanu logo: the bear cut from woven stripes">
+          <rect width="100" height="100" rx="22" fill="#000"/>
+          <g transform="translate(9 8) scale(.82)">
+            <g clip-path="url(#bear)">
+              <rect y="0" width="100" height="18" fill="#C98F3A"/><rect y="18" width="100" height="6" fill="#E7DFCF"/>
+              <rect y="24" width="100" height="14" fill="#A4492A"/><rect y="38" width="100" height="4" fill="#E7DFCF"/>
+              <rect y="42" width="100" height="16" fill="#56626B"/><rect y="58" width="100" height="5" fill="#E7DFCF"/>
+              <rect y="63" width="100" height="12" fill="#C98F3A"/><rect y="75" width="100" height="25" fill="#A4492A"/>
+            </g>
+            <path d="M43 62h14l-7 8z" fill="#000"/>
+          </g>
+        </svg>
+        <div class="icons">
+          <svg class="icon-small" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#000" stroke="#2B2F2D"/><g transform="translate(9 8) scale(.82)"><g clip-path="url(#bear)"><rect width="100" height="30" fill="#C98F3A"/><rect y="30" width="100" height="10" fill="#E7DFCF"/><rect y="40" width="100" height="30" fill="#A4492A"/><rect y="70" width="100" height="30" fill="#56626B"/></g><path d="M43 62h14l-7 8z" fill="#000"/></g></svg>
+          <svg class="icon-tiny" viewBox="0 0 100 100" aria-hidden="true"><g transform="translate(9 8) scale(.82)"><g clip-path="url(#bear)"><rect width="100" height="50" fill="#C98F3A"/><rect y="50" width="100" height="50" fill="#A4492A"/></g></g></svg>
+        </div>
+        <div class="wordmark">
+          <span style="font:800 26px var(--display);letter-spacing:-0.02em">Otso <span style="font-weight:600;color:#C98F3A">Expenses</span></span>
+        </div>
+        <p class="signature"><b>Signature:</b> the month as one woven bar. Each category is a band as wide as its share.</p>
+      </div>
+
+      <figure class="phone" aria-label="Raanu: logging an expense">
+        <div class="weave"></div>
+        <div class="status"><span>08:14</span><span>5G</span></div>
+        <div class="screen">
+          <div class="title-row"><h3>Log</h3><small>Mon 9 Nov</small></div>
+          <div><div class="amount num">12,40<small>€</small><span class="caret" style="background:#C98F3A"></span></div></div>
+          <div style="display:grid;gap:8px"><span class="label">Category</span>
+            <div class="chips"><span class="chip on">Groceries</span><span class="chip">Restaurants</span><span class="chip">Coffee &amp; snacks</span><span class="chip">Transport</span><span class="chip">More</span></div></div>
+          <div class="chips"><span class="chip on">Today</span><span class="chip">Yesterday</span><span class="chip">Pick a day</span></div>
+          <div class="field"><em>Note</em>Prisma Kamppi</div>
+          <div class="save">Save 12,40 €</div>
+          <div class="otso-line">
+            <svg viewBox="0 0 100 100" aria-hidden="true"><g clip-path="url(#bear)"><rect width="100" height="50" fill="#C98F3A"/><rect y="50" width="100" height="50" fill="#A4492A"/></g></svg>
+            <span>Logged <b>Unicafe 2,80 €</b> to Coffee, 08:12</span><span class="undo">Undo</span>
+          </div>
+        </div>
+        <div class="tabs"><span class="on">Log</span><span>Expenses</span><span>Money</span><span>Otso</span></div>
+      </figure>
+
+      <figure class="phone" aria-label="Raanu: the month">
+        <div class="weave"></div>
+        <div class="status"><span>21:40</span><span>5G</span></div>
+        <div class="screen">
+          <div class="title-row"><h3>November</h3><small>day 9 of 30</small></div>
+          <div style="display:grid;gap:6px"><div class="big num">412,30 €</div><span class="sub">of 1 000 € · on pace for about 1 120 €</span></div>
+          <div class="stripe-bar" aria-label="The month by category: groceries 41%, restaurants 23%, transport 16%, energy drinks 10%, coffee 10%">
+            <i style="flex:168;background:var(--w1)"></i><i style="flex:96;background:var(--w2)"></i><i style="flex:64;background:var(--w4)"></i><i style="flex:42;background:var(--red)"></i><i style="flex:41;background:var(--w3)"></i>
+          </div>
+          <div class="read" style="border-color:#C98F3A"><b>Otso's read</b>Groceries is 18% above your usual for the 9th: two big Prisma runs, on the 3rd and the 7th. The rest is on pace.</div>
+          <div class="rows">
+            <div class="row"><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--w1);margin-right:8px"></i>Groceries</span><span class="amt">168,20 <small>/ 400</small></span></div>
+            <div class="row"><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--w2);margin-right:8px"></i>Restaurants</span><span class="amt">96,50 <small>/ 200</small></span></div>
+            <div class="row"><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--w4);margin-right:8px"></i>Transport</span><span class="amt">64,00 <small>/ 64</small></span></div>
+            <div class="row over"><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--red);margin-right:8px"></i>Energy drinks</span><span class="amt">42,50 <small>/ 30</small></span></div>
+            <div class="row"><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--w3);margin-right:8px"></i>Coffee &amp; snacks</span><span class="amt">41,10 <small>/ 80</small></span></div>
+          </div>
+          <div class="money-line"><span>Income 1 120 €</span><span>Left this month <b>707,70 €</b></span></div>
+        </div>
+        <div class="tabs"><span>Log</span><span>Expenses</span><span class="on">Money</span><span>Otso</span></div>
+      </figure>
+    </div>
+  </section>
+</main>
