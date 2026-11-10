@@ -4,8 +4,12 @@ Tällä ohjeella kirjaat kulun avaamatta kulujenseuranta-sovellusta: kotinäytö
 Ohjauskeskuksesta, koputtamalla puhelimen takakantta tai Sirillä.
 
 Pikakomento ei kirjaudu sovellukseen vaan käyttää **laitetunnistetta**, joka luodaan
-sovelluksen asetuksista. Tunnisteella voi vain lisätä kuluja — ei lukea kuluja, ei muokata
-eikä poistaa mitään.
+sovelluksen asetuksista (Settings → Connections). Tavallisella tunnisteella voi lisätä kuluja ja
+perua oman, viikon sisällä tekemänsä kirjauksen — ei lukea kuluja, ei muokata eikä poistaa muuta.
+Jos tunnisteelle annetaan oikeus *Can read*, se voi myös lukea kaikki kulut ja budjetit.
+
+> Sovellus on nykyään englanninkielinen (Otso - Expenses). Pikakomennon kannalta mikään ei muuttunut:
+> samat funktiot, samat kentät ja sama ` (kuvaus)`-merkintä.
 
 > **Miksi ei oikeaa widgettiä?** iPhonen kotinäytön widget vaatii natiivin WidgetKit-laajennuksen,
 > jota selainpohjainen sovellus ei voi tarjota. Pikakomennot-sovelluksen widget on lähin
@@ -25,7 +29,7 @@ API-avain on julkinen eikä ole salaisuus — se on sama joka on sovelluksen koo
 ## Vaihe 1: luo laitetunniste
 
 1. Avaa sovellus
-2. **Asetukset → Pikakomento (iPhone)**
+2. **Settings → Connections**
 3. Kirjoita laitteen nimi (esim. `iPhone 14`) ja paina **Luo**
 4. Tunniste näytetään **vain kerran**. Paina *Kopioi leikepöydälle*.
 
@@ -203,10 +207,11 @@ kenttä `p_description` = *Annettu syöte*.
 ## Turvallisuus
 
 Laitetunniste on puhelimessasi selkotekstinä pikakomennossa. Jos se joutuu vääriin käsiin,
-sillä voi **vain lisätä kuluja sinun tilillesi** — ei nähdä kulujasi, ei muuttaa budjetteja,
-ei poistaa mitään, eikä kirjautua sovellukseen.
+sillä voi **lisätä kuluja sinun tilillesi** ja perua omia, viikon sisällä tekemiään kirjauksia —
+ei nähdä kulujasi (ellei sille ole annettu *Can read* -oikeutta), ei muuttaa budjetteja, ei poistaa
+muuta, eikä kirjautua sovellukseen.
 
-Mitätöinti: sovelluksen **Asetukset → Pikakomento (iPhone)** → roskakorikuvake. Pikakomento
+Mitätöinti: sovelluksen **Settings → Connections** → roskakorikuvake. Pikakomento
 lakkaa toimimasta välittömästi. Tee tämä jos myyt tai hukkaat puhelimen.
 
 Tietokannassa on vain tunnisteen SHA-256-tiiviste, joten tunnistetta ei voi lukea sieltä

@@ -1,15 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Kulujenseuranta">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#4f46e5"/>
-      <stop offset="1" stop-color="#0ea5e9"/>
+    <clipPath id="bear"><circle cx="24" cy="26" r="13"/><circle cx="76" cy="26" r="13"/>
+      <path d="M50 22c22 0 36 14 36 33 0 13-6 22-15 27l-7 4c-4 3-9 4-14 4s-10-1-14-4l-7-4C20 77 14 68 14 55c0-19 14-33 36-33z"/></clipPath>
+    <linearGradient id="ray" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F7C25A"/><stop offset="1" stop-color="#D9772F" stop-opacity=".55"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <rect x="104" y="300" width="60" height="112" rx="14" fill="#ffffff" opacity="0.55"/>
-  <rect x="196" y="236" width="60" height="176" rx="14" fill="#ffffff" opacity="0.75"/>
-  <rect x="288" y="164" width="60" height="248" rx="14" fill="#ffffff"/>
-  <circle cx="380" cy="140" r="34" fill="#ffffff"/>
-  <rect x="366" y="118" width="28" height="44" rx="6" fill="#4f46e5"/>
-  <rect x="356" y="128" width="48" height="24" rx="6" fill="#4f46e5"/>
+  <rect width="100" height="100" rx="22" fill="#000"/>
+  <g transform="translate(9 9) scale(.82)">
+    <g clip-path="url(#bear)" fill="url(#ray)"><rect x="10" width="2.4" height="100"/><rect x="15" width="2.4" height="100"/><rect x="20" width="2.4" height="100"/><rect x="25" width="2.4" height="100"/><rect x="30" width="2.4" height="100"/><rect x="35" width="2.4" height="100"/><rect x="40" width="2.4" height="100"/><rect x="45" width="2.4" height="100"/><rect x="50" width="2.4" height="100"/><rect x="55" width="2.4" height="100"/><rect x="60" width="2.4" height="100"/><rect x="65" width="2.4" height="100"/><rect x="70" width="2.4" height="100"/><rect x="75" width="2.4" height="100"/><rect x="80" width="2.4" height="100"/><rect x="85" width="2.4" height="100"/></g>
+    <path d="M43 62h14l-7 8z" fill="#000"/>
+  </g>
 </svg>

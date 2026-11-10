@@ -1,41 +1,28 @@
 // ============================================================
-//  KÄYNNISTYS ja nakymien ohjaus.
+//  Starting up, signing in, the three views and the month.
 //
-//  Vastuut: asetusten tarkistus, session tarkistus, datan lataus,
-//  valilehtien vaihto, kuukausinavigaatio, online-tila,
-//  uloskirjautuminen ja service workerin rekisterointi.
+//  The app opens on Month: it's used to review (Apple Pay through Otso and the Shortcut do most of the
+//  logging). Logging is the + button. Settings sit behind the icon at the top.
 // ============================================================
 
-import { APP_VERSION } from './config.js';
 import * as db from './db.js';
-import { state, setState, subscribe } from './state.js';
+import { state, setState, subscribe, lastMonth } from './state.js';
 import { currentMonth, monthLabel, addMonths } from './format.js';
-import { qs, qsa, show, initModal, toast, closeModal } from './ui-common.js';
-import { initAuthView, resetAuthView } from './ui-auth.js';
-import { initEntryView, renderEntryView, refreshEntryDateIfStale } from './ui-entry.js';
-import { initTransactionsView, renderTransactionsView } from './ui-transactions.js';
-import { initSummaryView, renderSummaryView } from './ui-summary.js';
-import { initBudgetView, renderBudgetView } from './ui-budget.js';
-import { initCategoriesView, renderCategoriesView } from './ui-categories.js';
-import { initTokensView, renderTokensView } from './ui-tokens.js';
-import { initExportView } from './export.js';
+import { qs, qsa, show, initSheet, toast, closeSheet, showError, clearError, setBusy } from './ui-common.js';
+import { icon, mark } from './icons.js';
+import { renderMonth } from './ui-month.js';
+import { renderExpenses } from './ui-expenses.js';
+import { renderOtso } from './ui-otso.js';
+import { openLog } from './ui-log.js';
+import { openSettings } from './ui-settings.js';
 
 const VIEWS = {
-  entry:        { panel: '#panel-entry',        title: 'Kirjaa kulu' },
-  transactions: { panel: '#panel-transactions', title: 'Kulut' },
-  summary:      { panel: '#panel-summary',      title: 'Yhteenveto' },
-  budget:       { panel: '#panel-budget',       title: 'Budjetti' },
-  settings:     { panel: '#panel-settings',     title: 'Asetukset' },
+  month: { panel: '#panel-month', title: 'Month', render: renderMonth, months: true },
+  expenses: { panel: '#panel-expenses', title: 'Expenses', render: renderExpenses, months: true },
+  otso: { panel: '#panel-otso', title: 'Otso', render: renderOtso, months: false },
 };
-
-const RELOAD_AFTER_MS = 60_000; // taustalta palatessa data ladataan uudelleen
-
-let viewsInitialised = false;
+const RELOAD_AFTER_MS = 60_000; // back from the background after this long: the data is read again
 let lastLoadedAt = 0;
-
-/* ------------------------------------------------------------
-   Ruudut
-   ------------------------------------------------------------ */
 
 function showScreen(which) {
   show(qs('#boot'), which === 'boot');
@@ -44,60 +31,46 @@ function showScreen(which) {
   show(qs('#view-app'), which === 'app');
 }
 
-/* ------------------------------------------------------------
-   Renderointi
-   ------------------------------------------------------------ */
+/* ---------- Drawing: the frame, and only the view on screen ---------- */
 
-function renderChrome() {
-  const view = VIEWS[state.view] ? state.view : 'entry';
-
-  for (const [name, config] of Object.entries(VIEWS)) {
-    show(qs(config.panel), name === view);
-  }
+function renderFrame() {
+  const view = VIEWS[state.view] ? state.view : 'month';
+  for (const [name, config] of Object.entries(VIEWS)) show(qs(config.panel), name === view);
   qsa('.tab').forEach((tab) => {
-    tab.classList.toggle('is-active', tab.dataset.view === view);
+    if (tab.dataset.view === view) tab.setAttribute('aria-current', 'page');
+    else tab.removeAttribute('aria-current');
   });
   qs('#topbar-title').textContent = VIEWS[view].title;
-
-  qsa('[data-month-label]').forEach((element) => {
-    element.textContent = monthLabel(state.month);
-  });
-  // Tulevaisuuteen ei ole mitaan katsottavaa.
-  const atCurrentMonth = state.month >= currentMonth();
-  qsa('[data-month-next]').forEach((button) => { button.disabled = atCurrentMonth; });
-
+  show(qs('#month-nav'), VIEWS[view].months);
+  qs('[data-month-label]').textContent = monthLabel(state.month);
+  qs('[data-month-prev]').disabled = false;
+  qs('[data-month-next]').disabled = state.month >= lastMonth();
   show(qs('#offline-badge'), !state.online);
-  qs('#settings-email').textContent = state.user ? (state.user.email || '') : '';
-  qs('#settings-version').textContent = `Versio ${APP_VERSION}`;
 }
 
 function renderAll() {
   if (!state.user) return;
-  renderChrome();
-  renderEntryView();
-  renderTransactionsView();
-  renderSummaryView();
-  renderBudgetView();
-  renderCategoriesView();
-  renderTokensView();
+  renderFrame();
+  const view = VIEWS[state.view] || VIEWS.month;
+  view.render(qs(view.panel));
 }
 
-/* ------------------------------------------------------------
-   Data
-   ------------------------------------------------------------ */
+/* ---------- Data ---------- */
 
 async function loadData() {
-  const [categories, transactions, budgets, deviceTokens] = await Promise.all([
-    db.fetchCategories(),
-    db.fetchTransactions(),
-    db.fetchBudgets(),
-    db.fetchDeviceTokens(),
+  const [categories, transactions, budgets, deviceTokens, income, paydays, notes] = await Promise.all([
+    db.fetchCategories(), db.fetchTransactions(), db.fetchBudgets(), db.fetchDeviceTokens(),
+    db.fetchIncome(), db.fetchPaydays(), db.fetchNotes(),
   ]);
   lastLoadedAt = Date.now();
-  setState({ categories, transactions, budgets, deviceTokens });
+  setState({
+    categories, transactions, budgets, deviceTokens, loaded: true,
+    income: income || [], paydays: paydays || [], notes: notes || [],
+    hasBuild1: income !== null && notes !== null,
+  });
 }
 
-async function loadDataSafely() {
+export async function reloadData() {
   try {
     await loadData();
   } catch (err) {
@@ -105,129 +78,102 @@ async function loadDataSafely() {
   }
 }
 
-/* ------------------------------------------------------------
-   Kirjautuminen sisaan ja ulos
-   ------------------------------------------------------------ */
+/* ---------- Signing in and out ---------- */
 
 async function startApp(session) {
   if (!session || !session.user) { showScreen('auth'); return; }
-
-  setState({ user: session.user, view: 'entry', month: currentMonth() });
+  setState({ user: session.user, view: 'month', month: currentMonth() });
   showScreen('app');
-
-  if (!viewsInitialised) {
-    initEntryView();
-    initTransactionsView();
-    initSummaryView();
-    initBudgetView();
-    initCategoriesView();
-    initTokensView();
-    initExportView({ reloadData: loadData });
-    viewsInitialised = true;
-  }
-
-  renderAll();
-  await loadDataSafely();
+  await reloadData();
 }
 
-async function handleSignOut() {
-  try {
-    await db.signOut();
-  } catch (err) {
-    // Uloskirjautuminen tehdaan paikallisesti vaikka verkko ei vastaisi.
-    console.warn('Uloskirjautuminen palvelimelta ei onnistunut:', err.message);
-  }
-  closeModal();
-  setState({
-    user: null, categories: [], transactions: [], budgets: [], deviceTokens: [], view: 'entry',
-  });
-  resetAuthView();
+export async function signOut() {
+  try { await db.signOut(); } catch (err) { console.warn('Signing out at the server failed:', err.message); }
+  closeSheet();
+  setState({ user: null, categories: [], transactions: [], budgets: [], deviceTokens: [], income: [], paydays: [], notes: [], loaded: false });
   showScreen('auth');
 }
 
-/* ------------------------------------------------------------
-   Kytkennat
-   ------------------------------------------------------------ */
+async function handleSignIn(event) {
+  event.preventDefault();
+  const email = qs('#auth-email').value.trim();
+  const password = qs('#auth-password').value;
+  const errorBox = qs('#auth-error');
+  const submit = qs('#auth-submit');
+  clearError(errorBox);
+  if (!email.includes('@')) { showError(errorBox, 'Enter your email address.'); return; }
+  if (!password) { showError(errorBox, 'Enter your password.'); return; }
+  setBusy(submit, true, 'Signing in…');
+  try {
+    const data = await db.signIn(email, password);
+    qs('#auth-password').value = '';
+    await startApp(data && data.session);
+  } catch (err) {
+    showError(errorBox, err.message);
+  } finally {
+    setBusy(submit, false);
+  }
+}
 
-function wireChrome() {
+/* ---------- Wiring ---------- */
+
+function wire() {
+  qs('#boot-mark').innerHTML = mark(72);
+  qs('#auth-mark').innerHTML = mark(52);
+  qs('#topbar-mark').innerHTML = mark(28);
+  qs('#btn-settings').innerHTML = icon('settings');
+  qs('[data-month-prev]').innerHTML = icon('prev');
+  qs('[data-month-next]').innerHTML = icon('next');
+  qs('#sheet-close').innerHTML = icon('close');
+  qs('#fab').innerHTML = icon('plus');
+  qsa('[data-icon]').forEach((el) => { el.innerHTML = icon(el.dataset.icon); });
+
+  qs('#auth-form').addEventListener('submit', handleSignIn);
   qs('#tabbar').addEventListener('click', (event) => {
     const tab = event.target.closest('.tab');
-    if (tab && VIEWS[tab.dataset.view]) setState({ view: tab.dataset.view });
+    if (tab && VIEWS[tab.dataset.view]) { setState({ view: tab.dataset.view }); window.scrollTo(0, 0); }
   });
-
-  // "Hallitse"-linkit kirjausnakymasta asetuksiin
-  document.addEventListener('click', (event) => {
-    const link = event.target.closest('[data-goto]');
-    if (link && VIEWS[link.dataset.goto]) setState({ view: link.dataset.goto });
+  qs('[data-month-prev]').addEventListener('click', () => setState({ month: addMonths(state.month, -1) }));
+  qs('[data-month-next]').addEventListener('click', () => {
+    const next = addMonths(state.month, 1);
+    if (next <= lastMonth()) setState({ month: next });
   });
-
-  qsa('[data-month-prev]').forEach((button) => {
-    button.addEventListener('click', () => setState({ month: addMonths(state.month, -1) }));
-  });
-  qsa('[data-month-next]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const next = addMonths(state.month, 1);
-      if (next <= currentMonth()) setState({ month: next });
-    });
-  });
-
-  qs('#btn-signout').addEventListener('click', handleSignOut);
+  qs('#fab').addEventListener('click', () => openLog());
+  qs('#btn-settings').addEventListener('click', () => openSettings());
 
   window.addEventListener('online', () => setState({ online: true }));
   window.addEventListener('offline', () => setState({ online: false }));
-
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible' || !state.user) return;
-    refreshEntryDateIfStale();
-    if (Date.now() - lastLoadedAt > RELOAD_AFTER_MS) loadDataSafely();
+    if (Date.now() - lastLoadedAt > RELOAD_AFTER_MS) reloadData();
   });
 }
 
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
-  const isSecure = location.protocol === 'https:'
-    || ['localhost', '127.0.0.1'].includes(location.hostname);
-  if (!isSecure) return;
+  const secure = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
+  if (!secure || location.pathname.includes('/tools/')) return; // (not in the local preview: it would serve stale files)
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch((err) => {
-      console.warn('Service workerin rekisteröinti ei onnistunut:', err);
-    });
+    navigator.serviceWorker.register('sw.js').catch((err) => console.warn('The service worker failed:', err));
   });
 }
 
-/* ------------------------------------------------------------
-   Boot
-   ------------------------------------------------------------ */
-
 async function boot() {
-  initModal();
-  wireChrome();
+  initSheet();
+  wire();
   registerServiceWorker();
   subscribe(renderAll);
 
-  if (!db.isConfigured()) {
-    showScreen('config');
-    return;
-  }
-
-  initAuthView({ onSignedIn: (session) => startApp(session) });
-
+  if (!db.isConfigured()) { showScreen('config'); return; }
   try {
     const session = await db.getSession();
-    if (session) {
-      await startApp(session);
-    } else {
-      showScreen('auth');
-    }
-
+    if (session) await startApp(session);
+    else showScreen('auth');
     db.onAuthChange((event, newSession) => {
       if (event === 'SIGNED_OUT') {
-        setState({ user: null, categories: [], transactions: [], budgets: [], deviceTokens: [] });
-        resetAuthView();
+        setState({ user: null });
         showScreen('auth');
-        return;
-      }
-      if (event === 'SIGNED_IN' && !state.user && newSession) {
+      } else if (event === 'SIGNED_IN' && !state.user && newSession) {
         startApp(newSession);
       }
     });

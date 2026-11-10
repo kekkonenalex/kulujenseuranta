@@ -1,16 +1,14 @@
 // ============================================================
-//  DATAKERROS - kaikki Supabase-kutsut kulkevat tasta tiedostosta.
-//
-//  Muu sovellus ei tiedä mitään Supabasesta. Jos tallennus joskus
-//  vaihdetaan tai eteen lisataan offline-jono, muutokset osuvat
-//  vain tahan tiedostoon.
+//  The data layer: every Supabase call goes through this file. The rest of the app knows nothing of
+//  Supabase. Row Level Security decides what the signed-in user may read and write; nothing here
+//  holds a key that could bypass it.
 // ============================================================
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
-const PAGE_SIZE = 1000; // Supabasen oletuskatto yhdelle vastaukselle
+const PAGE_SIZE = 1000; // Supabase's cap for one answer
 
-/** Virhe jonka viesti on tarkoitettu suoraan kayttajalle. */
+/** An error whose message is meant for the person using the app. */
 export class AppError extends Error {
   constructor(message, kind = 'unknown') {
     super(message);
@@ -29,73 +27,55 @@ let client = null;
 
 export function getClient() {
   if (client) return client;
-  if (!isConfigured()) throw new AppError('Supabase-asetukset puuttuvat (js/config.js).', 'config');
+  if (!isConfigured()) throw new AppError('The Supabase settings are missing (js/config.js).', 'config');
   if (!window.supabase || typeof window.supabase.createClient !== 'function') {
-    throw new AppError('Supabase-kirjastoa ei saatu ladattua. Tarkista verkkoyhteys ja lataa sivu uudelleen.', 'offline');
+    throw new AppError("The database library didn't load. Check the connection and open the app again.", 'offline');
   }
   client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: {
-      persistSession: true,     // sessio jaa localStorageen -> ei kirjautumista joka kerta
-      autoRefreshToken: true,
-      detectSessionInUrl: false,
-    },
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
   });
   return client;
 }
 
 /* ------------------------------------------------------------
-   Virheiden kaannos kayttajan kielelle
+   Errors, in plain words
    ------------------------------------------------------------ */
 
 function looksOffline(message) {
   return !navigator.onLine
-    || /failed to fetch|networkerror|network request failed|load failed|timeout|fetch/i.test(message);
+    || /failed to fetch|networkerror|network request failed|load failed|timeout/i.test(message);
 }
 
 export function toAppError(error) {
   if (error instanceof AppError) return error;
-  const message = String((error && error.message) || error || 'Tuntematon virhe');
+  const message = String((error && error.message) || error || 'Something went wrong');
 
   if (looksOffline(message)) {
-    return new AppError('Ei verkkoyhteyttä – tietoja ei tallennettu. Yritä uudelleen kun verkko toimii.', 'offline');
+    return new AppError("No connection, so nothing was saved. Try again when you're online.", 'offline');
   }
-  if (/invalid login credentials/i.test(message)) {
-    return new AppError('Sähköposti tai salasana ei täsmää.', 'auth');
+  if (/invalid login credentials/i.test(message)) return new AppError("That email and password don't match.", 'auth');
+  if (/email not confirmed/i.test(message)) return new AppError("The email isn't confirmed yet: open the link in your inbox.", 'auth');
+  if (/rate limit|too many requests|over_email_send_rate/i.test(message)) {
+    return new AppError('Too many tries. Wait a moment and try again.', 'auth');
   }
-  if (/signup.?disabled|signups not allowed/i.test(message)) {
-    return new AppError('Uusien tunnusten luonti on suljettu tässä projektissa. Kirjaudu olemassa olevalla tunnuksella.', 'auth');
-  }
-  if (/user already registered|already been registered/i.test(message)) {
-    return new AppError('Tälle sähköpostille on jo tunnus. Kirjaudu sisään.', 'auth');
-  }
-  if (/password should be at least|weak.?password/i.test(message)) {
-    return new AppError('Salasana on liian lyhyt tai heikko.', 'auth');
-  }
-  if (/email not confirmed/i.test(message)) {
-    return new AppError('Sähköpostia ei ole vahvistettu. Avaa vahvistuslinkki sähköpostistasi.', 'auth');
-  }
-  if (/email address.*invalid|invalid email/i.test(message)) {
-    return new AppError('Sähköpostiosoite ei ole kelvollinen.', 'auth');
-  }
-  if (/over_email_send_rate|rate limit|too many requests/i.test(message)) {
-    return new AppError('Liian monta yritystä. Odota hetki ja yritä uudelleen.', 'auth');
-  }
-  if (/duplicate key|categories_user_name_uniq|unique constraint/i.test(message)) {
-    return new AppError('Samanniminen kategoria on jo olemassa.', 'conflict');
+  if (/categories_user_name_uniq|duplicate key|unique constraint/i.test(message)) {
+    return new AppError('There is a category with that name already.', 'conflict');
   }
   if (/still referenced|violates foreign key|update or delete on table "categories"/i.test(message)) {
-    return new AppError('Kategoriaa ei voi poistaa, koska sillä on kirjauksia. Arkistoi se tai siirrä kirjaukset toiseen kategoriaan.', 'conflict');
+    return new AppError('That category has expenses, so it can only be archived.', 'conflict');
   }
+  if (/categories_color_format/i.test(message)) return new AppError('A colour is written like #f5b544.', 'invalid');
+  if (/_length|value too long/i.test(message)) return new AppError("That's too long.", 'invalid');
   if (/row-level security|permission denied|jwt|not authorized/i.test(message)) {
-    return new AppError('Tietokanta esti toiminnon. Tarkista että supabase-schema.sql on ajettu ja että olet kirjautunut.', 'db');
+    return new AppError("The database refused that. You may have been signed out: sign in again.", 'db');
   }
-  if (/relation .* does not exist|could not find the table/i.test(message)) {
-    return new AppError('Tietokannan taulut puuttuvat. Aja supabase-schema.sql Supabasen SQL Editorissa.', 'db');
+  if (/relation .* does not exist|could not find the table|schema cache/i.test(message)) {
+    return new AppError("The database doesn't have this part yet: paste sql/build1.sql in Supabase's SQL Editor.", 'db');
   }
   return new AppError(message, 'unknown');
 }
 
-/** Kaikki kutsut kaytavat taman lapi: heittaa aina AppErrorin. */
+/** Every call goes through here: it always throws an AppError. */
 async function run(promiseLike) {
   let result;
   try {
@@ -107,8 +87,18 @@ async function run(promiseLike) {
   return result ? result.data : null;
 }
 
+/** A table the database may not have yet (before build1.sql): empty, not an error. */
+async function optional(promiseLike) {
+  try {
+    return (await run(promiseLike)) || [];
+  } catch (err) {
+    if (err.kind === 'db' && /SQL Editor/.test(err.message)) return null;
+    throw err;
+  }
+}
+
 /* ------------------------------------------------------------
-   Autentikointi
+   Signing in
    ------------------------------------------------------------ */
 
 export async function getSession() {
@@ -122,23 +112,7 @@ export function onAuthChange(handler) {
 }
 
 export async function signIn(email, password) {
-  const data = await run(getClient().auth.signInWithPassword({
-    email: String(email).trim(),
-    password,
-  }));
-  return data;
-}
-
-/**
- * Luo tunnuksen. Jos Supabase-projektissa on sahkopostivahvistus
- * paalla, session on null ja kayttajan pitaa avata vahvistuslinkki.
- */
-export async function signUp(email, password) {
-  const data = await run(getClient().auth.signUp({
-    email: String(email).trim(),
-    password,
-  }));
-  return { user: data && data.user, session: data && data.session };
+  return run(getClient().auth.signInWithPassword({ email: String(email).trim(), password }));
 }
 
 export async function signOut() {
@@ -147,39 +121,30 @@ export async function signOut() {
 
 async function requireUserId() {
   const session = await getSession();
-  if (!session || !session.user) throw new AppError('Kirjautuminen on vanhentunut. Kirjaudu uudelleen.', 'auth');
+  if (!session || !session.user) throw new AppError('You were signed out. Sign in again.', 'auth');
   return session.user.id;
 }
 
 /* ------------------------------------------------------------
-   Kategoriat
+   Categories
    ------------------------------------------------------------ */
 
 const CATEGORY_COLUMNS = 'id, name, color, sort_order, archived, ask_description, created_at';
 
 export async function fetchCategories() {
-  const data = await run(getClient()
-    .from('categories')
-    .select(CATEGORY_COLUMNS)
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: true }));
-  return data || [];
+  return (await run(getClient().from('categories').select(CATEGORY_COLUMNS)
+    .order('sort_order', { ascending: true }).order('created_at', { ascending: true }))) || [];
 }
 
 export async function createCategory({ name, color, sortOrder, askDescription = false }) {
   const userId = await requireUserId();
-  const data = await run(getClient()
-    .from('categories')
-    .insert({
-      user_id: userId,
-      name: String(name).trim(),
-      color: color || '#6366f1',
-      sort_order: Number.isFinite(sortOrder) ? sortOrder : 0,
-      ask_description: Boolean(askDescription),
-    })
-    .select(CATEGORY_COLUMNS)
-    .single());
-  return data;
+  return run(getClient().from('categories').insert({
+    user_id: userId,
+    name: String(name).trim(),
+    color: color || '#f5b544',
+    sort_order: Number.isFinite(sortOrder) ? sortOrder : 0,
+    ask_description: Boolean(askDescription),
+  }).select(CATEGORY_COLUMNS).single());
 }
 
 export async function updateCategory(id, patch) {
@@ -189,14 +154,7 @@ export async function updateCategory(id, patch) {
   if (patch.archived !== undefined) allowed.archived = Boolean(patch.archived);
   if (patch.sortOrder !== undefined) allowed.sort_order = patch.sortOrder;
   if (patch.askDescription !== undefined) allowed.ask_description = Boolean(patch.askDescription);
-
-  const data = await run(getClient()
-    .from('categories')
-    .update(allowed)
-    .eq('id', id)
-    .select(CATEGORY_COLUMNS)
-    .single());
-  return data;
+  return run(getClient().from('categories').update(allowed).eq('id', id).select(CATEGORY_COLUMNS).single());
 }
 
 export async function deleteCategory(id) {
@@ -204,42 +162,36 @@ export async function deleteCategory(id) {
 }
 
 /* ------------------------------------------------------------
-   Transaktiot
+   Expenses (the table is still called transactions)
    ------------------------------------------------------------ */
 
-/** Hakee kaikki transaktiot sivuttamalla (Supabase palauttaa max 1000/kutsu). */
+const TX_COLUMNS = 'id, category_id, amount_cents, occurred_on, description, created_at, updated_at, device_token_id';
+
+/** Every expense, a page at a time (Supabase gives at most 1000 per answer). */
 export async function fetchTransactions() {
   const rows = [];
-  for (let page = 0; ; page += 1) {
+  for (let page = 0; page < 200; page += 1) {
     const from = page * PAGE_SIZE;
-    const data = await run(getClient()
-      .from('transactions')
-      .select('id, category_id, amount_cents, occurred_on, description, created_at, updated_at')
-      .order('occurred_on', { ascending: false })
-      .order('created_at', { ascending: false })
-      .range(from, from + PAGE_SIZE - 1));
-    const batch = data || [];
+    const batch = (await run(getClient().from('transactions').select(TX_COLUMNS)
+      .order('occurred_on', { ascending: false }).order('created_at', { ascending: false })
+      .range(from, from + PAGE_SIZE - 1))) || [];
     rows.push(...batch);
     if (batch.length < PAGE_SIZE) break;
-    if (page > 200) break; // turvaraja
   }
   return rows;
 }
 
-export async function createTransaction({ categoryId, amountCents, occurredOn, description }) {
+export async function createTransaction({ categoryId, amountCents, occurredOn, description, deviceTokenId = null }) {
   const userId = await requireUserId();
-  const data = await run(getClient()
-    .from('transactions')
-    .insert({
-      user_id: userId,
-      category_id: categoryId,
-      amount_cents: amountCents,
-      occurred_on: occurredOn,
-      description: description ? String(description).trim() : null,
-    })
-    .select('id, category_id, amount_cents, occurred_on, description, created_at, updated_at')
-    .single());
-  return data;
+  const row = {
+    user_id: userId,
+    category_id: categoryId,
+    amount_cents: amountCents,
+    occurred_on: occurredOn,
+    description: description ? String(description).trim().slice(0, 300) : null,
+  };
+  if (deviceTokenId) row.device_token_id = deviceTokenId; // (putting back one Otso logged: it stays Otso's)
+  return run(getClient().from('transactions').insert(row).select(TX_COLUMNS).single());
 }
 
 export async function updateTransaction(id, patch) {
@@ -248,15 +200,9 @@ export async function updateTransaction(id, patch) {
   if (patch.amountCents !== undefined) allowed.amount_cents = patch.amountCents;
   if (patch.occurredOn !== undefined) allowed.occurred_on = patch.occurredOn;
   if (patch.description !== undefined) {
-    allowed.description = patch.description ? String(patch.description).trim() : null;
+    allowed.description = patch.description ? String(patch.description).trim().slice(0, 300) : null;
   }
-  const data = await run(getClient()
-    .from('transactions')
-    .update(allowed)
-    .eq('id', id)
-    .select('id, category_id, amount_cents, occurred_on, description, created_at, updated_at')
-    .single());
-  return data;
+  return run(getClient().from('transactions').update(allowed).eq('id', id).select(TX_COLUMNS).single());
 }
 
 export async function deleteTransaction(id) {
@@ -264,42 +210,24 @@ export async function deleteTransaction(id) {
 }
 
 /* ------------------------------------------------------------
-   Budjetit
-
-   year_month null  = perusbudjetti, patee kaikkiin kuukausiin
-   year_month 'YYYY-MM' = vain sen kuukauden ylikirjoitus
+   Budgets: year_month null is the budget for every month; 'YYYY-MM' is that month's own.
    ------------------------------------------------------------ */
 
 const BUDGET_COLUMNS = 'id, category_id, year_month, amount_cents';
 
 export async function fetchBudgets() {
-  const data = await run(getClient()
-    .from('budgets')
-    .select(BUDGET_COLUMNS));
-  return data || [];
+  return (await run(getClient().from('budgets').select(BUDGET_COLUMNS))) || [];
 }
 
-/** Luo uuden budjettirivin tai paivittaa olemassa olevan summan. */
 export async function saveBudget({ id = null, categoryId, yearMonth = null, amountCents }) {
   if (id) {
-    return run(getClient()
-      .from('budgets')
-      .update({ amount_cents: amountCents })
-      .eq('id', id)
-      .select(BUDGET_COLUMNS)
-      .single());
+    return run(getClient().from('budgets').update({ amount_cents: amountCents }).eq('id', id)
+      .select(BUDGET_COLUMNS).single());
   }
   const userId = await requireUserId();
-  return run(getClient()
-    .from('budgets')
-    .insert({
-      user_id: userId,
-      category_id: categoryId,
-      year_month: yearMonth,
-      amount_cents: amountCents,
-    })
-    .select(BUDGET_COLUMNS)
-    .single());
+  return run(getClient().from('budgets').insert({
+    user_id: userId, category_id: categoryId, year_month: yearMonth, amount_cents: amountCents,
+  }).select(BUDGET_COLUMNS).single());
 }
 
 export async function deleteBudget(id) {
@@ -307,30 +235,102 @@ export async function deleteBudget(id) {
 }
 
 /* ------------------------------------------------------------
-   Laitetunnisteet (iPhonen pikakomento)
-
-   Tietokantaan menee vain tunnisteen SHA-256-tiiviste. Itse tunniste
-   arvotaan selaimessa, naytetaan kerran ja unohdetaan.
+   Income and paydays (build1.sql). null when the database doesn't have them yet.
    ------------------------------------------------------------ */
 
-// Vain naytettavat sarakkeet: tunnisteen tiiviste ei tule selaimeen.
-export async function fetchDeviceTokens() {
-  const data = await run(getClient()
-    .from('device_tokens')
-    .select('id, name, created_at, last_used_at, can_read')
-    .order('created_at', { ascending: false }));
-  return data || [];
+const INCOME_COLUMNS = 'id, amount_cents, received_on, source, note, payday_id, created_at';
+const PAYDAY_COLUMNS = 'id, name, amount_cents, day_of_month, starts_on, ends_on, created_at';
+
+export async function fetchIncome() {
+  return optional(getClient().from('income').select(INCOME_COLUMNS).order('received_on', { ascending: false }));
 }
 
-export async function createDeviceToken({ name, tokenHash, canRead = false }) {
-  const userId = await requireUserId();
-  const row = { user_id: userId, name: String(name).trim() || 'iPhone', token_hash: tokenHash };
-  if (canRead) row.can_read = true; // vain silloin: vanha skeema ei tunne saraketta
-  return run(getClient()
-    .from('device_tokens')
-    .insert(row)
-    .select('id, name, created_at, last_used_at, can_read')
-    .single());
+export async function fetchPaydays() {
+  return optional(getClient().from('paydays').select(PAYDAY_COLUMNS).order('day_of_month', { ascending: true }));
+}
+
+export async function saveIncome({ id = null, amountCents, receivedOn, source, note = null, paydayId = null }) {
+  const row = {
+    amount_cents: amountCents, received_on: receivedOn, source: String(source).trim().slice(0, 60),
+    note: note ? String(note).trim().slice(0, 300) : null, payday_id: paydayId,
+  };
+  if (id) return run(getClient().from('income').update(row).eq('id', id).select(INCOME_COLUMNS).single());
+  return run(getClient().from('income').insert({ user_id: await requireUserId(), ...row }).select(INCOME_COLUMNS).single());
+}
+
+export async function deleteIncome(id) {
+  await run(getClient().from('income').delete().eq('id', id));
+}
+
+export async function savePayday({ id = null, name, amountCents, dayOfMonth, startsOn, endsOn = null }) {
+  const row = {
+    name: String(name).trim().slice(0, 60), amount_cents: amountCents, day_of_month: dayOfMonth,
+    starts_on: startsOn, ends_on: endsOn,
+  };
+  if (id) return run(getClient().from('paydays').update(row).eq('id', id).select(PAYDAY_COLUMNS).single());
+  return run(getClient().from('paydays').insert({ user_id: await requireUserId(), ...row }).select(PAYDAY_COLUMNS).single());
+}
+
+export async function deletePayday(id) {
+  await run(getClient().from('paydays').delete().eq('id', id));
+}
+
+/* ------------------------------------------------------------
+   Otso's notes (build1.sql): Otso writes them with its token; here they're read, dismissed, deleted.
+   ------------------------------------------------------------ */
+
+const NOTE_COLUMNS = 'id, key, kind, title, body, month, valid_until, dismissed_at, created_at, updated_at';
+
+export async function fetchNotes() {
+  return optional(getClient().from('otso_notes').select(NOTE_COLUMNS).order('updated_at', { ascending: false }));
+}
+
+export async function dismissNote(id) {
+  return run(getClient().from('otso_notes').update({ dismissed_at: new Date().toISOString() }).eq('id', id)
+    .select(NOTE_COLUMNS).single());
+}
+
+export async function deleteNote(id) {
+  await run(getClient().from('otso_notes').delete().eq('id', id));
+}
+
+/* ------------------------------------------------------------
+   Device tokens (the iPhone Shortcut, Otso). Only the token's SHA-256 is stored; the token itself is
+   made in the browser, shown once and forgotten.
+   ------------------------------------------------------------ */
+
+const TOKEN_COLUMNS = 'id, name, created_at, last_used_at, can_read';
+let tokenColumns = `${TOKEN_COLUMNS}, can_note`;
+
+export async function fetchDeviceTokens() {
+  try {
+    return (await run(getClient().from('device_tokens').select(tokenColumns)
+      .order('created_at', { ascending: false }))) || [];
+  } catch (err) {
+    if (tokenColumns === TOKEN_COLUMNS || err.kind !== 'unknown') throw err;
+    tokenColumns = TOKEN_COLUMNS; // (before build1.sql there's no can_note)
+    return fetchDeviceTokens();
+  }
+}
+
+export async function createDeviceToken({ name, tokenHash, canRead = false, canNote = false }) {
+  const row = { user_id: await requireUserId(), name: String(name).trim().slice(0, 60) || 'iPhone', token_hash: tokenHash };
+  if (canRead) row.can_read = true;
+  if (canNote) row.can_note = true;
+  return run(getClient().from('device_tokens').insert(row).select(tokenColumns).single());
+}
+
+/** Rename a token, or switch what it may do (build1.sql adds the update policy). */
+export async function updateDeviceToken(id, { name, canRead, canNote }) {
+  const patch = {};
+  if (name !== undefined) patch.name = String(name).trim().slice(0, 60) || 'iPhone';
+  if (canRead !== undefined) patch.can_read = Boolean(canRead);
+  if (canNote !== undefined) patch.can_note = Boolean(canNote);
+  const data = await run(getClient().from('device_tokens').update(patch).eq('id', id).select(tokenColumns));
+  if (!data || !data.length) {
+    throw new AppError("The token couldn't be changed: paste sql/build1.sql in Supabase's SQL Editor first.", 'db');
+  }
+  return data[0];
 }
 
 export async function deleteDeviceToken(id) {
@@ -338,35 +338,25 @@ export async function deleteDeviceToken(id) {
 }
 
 /* ------------------------------------------------------------
-   Varmuuskopion tuonti
+   Restoring a backup: nothing is deleted. Categories with the same name are merged and their
+   expenses added; importing the same file twice adds its expenses twice.
    ------------------------------------------------------------ */
 
-/**
- * Tuo kategoriat ja transaktiot varmuuskopiosta.
- * Olemassa olevaa dataa ei poisteta: samannimiset kategoriat
- * yhdistetaan ja niiden transaktiot lisataan.
- */
 export async function importBackup({ categories = [], transactions = [], budgets = [] }) {
   const userId = await requireUserId();
   const existing = await fetchCategories();
-
   const keyOf = (name) => String(name || '').trim().toLowerCase();
-  const idMap = new Map();                       // varmuuskopion id -> tietokannan id
+  const idMap = new Map();
   const byName = new Map(existing.map((c) => [keyOf(c.name), c]));
 
   let createdCategories = 0;
   for (const cat of categories) {
     const key = keyOf(cat.name);
     if (!key) continue;
-    if (byName.has(key)) {
-      idMap.set(cat.id, byName.get(key).id);
-      continue;
-    }
+    if (byName.has(key)) { idMap.set(cat.id, byName.get(key).id); continue; }
     const created = await createCategory({
-      name: cat.name,
-      color: cat.color || '#6366f1',
-      sortOrder: Number.isFinite(cat.sort_order) ? cat.sort_order : 0,
-      askDescription: cat.ask_description === true,
+      name: cat.name, color: /^#[0-9a-f]{6}$/i.test(cat.color || '') ? cat.color : '#f5b544',
+      sortOrder: Number.isFinite(cat.sort_order) ? cat.sort_order : 0, askDescription: cat.ask_description === true,
     });
     byName.set(key, created);
     idMap.set(cat.id, created.id);
@@ -378,46 +368,31 @@ export async function importBackup({ categories = [], transactions = [], budgets
   for (const tx of transactions) {
     const categoryId = idMap.get(tx.category_id);
     const cents = Math.round(Number(tx.amount_cents));
-    if (!categoryId || !Number.isFinite(cents) || cents <= 0 || !tx.occurred_on) {
-      skipped += 1;
-      continue;
-    }
+    if (!categoryId || !Number.isFinite(cents) || cents <= 0 || !tx.occurred_on) { skipped += 1; continue; }
     rows.push({
-      user_id: userId,
-      category_id: categoryId,
-      amount_cents: cents,
-      occurred_on: tx.occurred_on,
-      description: tx.description ? String(tx.description) : null,
+      user_id: userId, category_id: categoryId, amount_cents: cents, occurred_on: tx.occurred_on,
+      description: tx.description ? String(tx.description).slice(0, 300) : null,
     });
   }
-
-  const CHUNK = 400;
   let inserted = 0;
-  for (let i = 0; i < rows.length; i += CHUNK) {
-    const chunk = rows.slice(i, i + CHUNK);
+  for (let i = 0; i < rows.length; i += 400) {
+    const chunk = rows.slice(i, i + 400);
     await run(getClient().from('transactions').insert(chunk));
     inserted += chunk.length;
   }
 
-  // Budjetit: olemassa olevaa ei ylikirjoiteta, puuttuvat lisataan.
   const existingBudgets = await fetchBudgets();
   const budgetKey = (categoryId, yearMonth) => `${categoryId}|${yearMonth || ''}`;
   const haveBudget = new Set(existingBudgets.map((b) => budgetKey(b.category_id, b.year_month)));
-
   let budgetsAdded = 0;
   for (const budget of budgets) {
     const categoryId = idMap.get(budget.category_id);
     const cents = Math.round(Number(budget.amount_cents));
     if (!categoryId || !Number.isFinite(cents) || cents < 0) continue;
     if (haveBudget.has(budgetKey(categoryId, budget.year_month))) continue;
-    await saveBudget({
-      categoryId,
-      yearMonth: budget.year_month || null,
-      amountCents: cents,
-    });
+    await saveBudget({ categoryId, yearMonth: budget.year_month || null, amountCents: cents });
     haveBudget.add(budgetKey(categoryId, budget.year_month));
     budgetsAdded += 1;
   }
-
   return { createdCategories, inserted, skipped, budgetsAdded };
 }
