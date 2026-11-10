@@ -31,8 +31,8 @@ export function renderExpenses(panel) {
       <div class="find">
         <div class="find-box">${icon('search', { size: 20 })}
           <input type="search" id="find-input" placeholder="Find: coffee, wolt, 12,50, october…" autocomplete="off" aria-label="Find expenses"></div>
-        <div class="chips" role="group" aria-label="Show">${FILTERS.map(([key, label]) =>
-          `<button type="button" class="chip" data-filter="${key}">${label}</button>`).join('')}</div>
+        <div class="word-tabs" role="group" aria-label="Show">${FILTERS.map(([key, label]) =>
+          `<button type="button" class="word-tab" data-filter="${key}">${label}</button>`).join('')}</div>
       </div>
       <div id="expense-results"></div>`;
     const input = panel.querySelector('#find-input');
@@ -72,7 +72,7 @@ function byDay(rows, flagged, searching) {
     const label = searching && monthOf(iso) !== monthOf(todayISO()) ? formatDay(iso) : dayHeading(iso);
     return `<section class="day" aria-label="${escapeHtml(label)}">
       <div class="day-head"><span>${escapeHtml(label)}</span><span class="num">${escapeHtml(formatMoney(sum))}</span></div>
-      ${txs.map((tx) => txRow(tx, flagged.has(tx.id))).join('')}</section>`;
+      <div class="group">${txs.map((tx) => txRow(tx, flagged.has(tx.id))).join('')}</div></section>`;
   }).join('');
 }
 
@@ -85,7 +85,7 @@ export function txRow(tx, isFlagged = false) {
       <span class="tx-main"><span class="tx-cat">${escapeHtml(cat ? cat.name : 'Deleted category')}</span>
         ${tx.description ? `<span class="tx-desc">${escapeHtml(tx.description)}</span>` : ''}</span>
       <span><span class="tx-amount">${escapeHtml(formatMoney(tx.amount_cents))}</span>
-        <span class="tx-meta">${isFlagged ? '<span class="flagged">Check</span>' : ''}${source !== 'you' ? `<span class="src src-${source}">${SOURCE_LABEL[source]}</span>` : ''}</span></span>
+        <span class="tx-meta">${isFlagged ? '<span class="tag tag-check">check</span>' : ''}${source !== 'you' ? `<span class="tag tag-${source}">${SOURCE_LABEL[source]}</span>` : ''}</span></span>
     </button>`;
 }
 
@@ -108,9 +108,9 @@ export function openExpense(txId) {
     <div class="field"><label for="tx-amount">Amount, €</label>
       <input id="tx-amount" inputmode="decimal" autocomplete="off" value="${escapeHtml(formatAmount(tx.amount_cents))}"></div>
     <div class="field"><span class="label" id="tx-cat-label">Category</span>
-      <div class="chips cat-chips" role="group" aria-labelledby="tx-cat-label">${cats.map((c) => `
-        <button type="button" class="chip" data-cat="${escapeHtml(c.id)}" aria-pressed="${c.id === tx.category_id}">
-          <span class="dot" style="background:${safeColor(c.color)}"></span>${escapeHtml(c.name)}</button>`).join('')}</div></div>
+      <div class="pick-list" role="group" aria-labelledby="tx-cat-label">${cats.map((c) => `
+        <button type="button" class="pick" data-cat="${escapeHtml(c.id)}" aria-pressed="${c.id === tx.category_id}">
+          <span class="dot" style="background:${safeColor(c.color)}"></span><span>${escapeHtml(c.name)}</span></button>`).join('')}</div></div>
     <div class="field"><label for="tx-date">Day</label><input type="date" id="tx-date" value="${escapeHtml(tx.occurred_on)}"></div>
     <div class="field"><label for="tx-note">Note</label><input id="tx-note" maxlength="300" value="${escapeHtml(tx.description || '')}"></div>
     <p id="tx-error" class="alert alert-error" role="alert" hidden></p>

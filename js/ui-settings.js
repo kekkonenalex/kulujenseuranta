@@ -36,7 +36,7 @@ const SECTIONS = [
 export function openSettings(section = null) {
   const found = SECTIONS.find(([key]) => key === section);
   if (found) { found[3](); return; }
-  const body = openSheet('Settings', `<div class="menu">${SECTIONS.map(([key, title, sub]) => `
+  const body = openSheet('Settings', `<div class="menu group">${SECTIONS.map(([key, title, sub]) => `
     <button type="button" class="menu-item" data-section="${key}"><span><b>${title}</b><br><span>${key === 'account' && state.user ? escapeHtml(state.user.email || '') : sub}</span></span>${icon('next', { size: 18 })}</button>`).join('')}</div>`);
   body.querySelectorAll('[data-section]').forEach((el) => el.addEventListener('click', () => openSettings(el.dataset.section)));
 }

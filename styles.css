@@ -24,6 +24,7 @@
   --on-amber: #120c02;
   --red: #de2a27;          /* over budget: bars and dots */
   --red-text: #ff6b63;     /* the same, for text on black (6.3:1) */
+  --panel: #0f0d0b;        /* a grouped list's ground */
   --display: "Schibsted Grotesk", "Atkinson Hyperlegible", system-ui, sans-serif;
   --body: "Atkinson Hyperlegible", system-ui, sans-serif;
   --gutter: max(16px, env(safe-area-inset-left, 0px));
@@ -107,13 +108,15 @@ input[type="checkbox"] { width: 22px; min-height: 22px; height: 22px; accent-col
 
 /* ---------- Buttons ---------- */
 .btn {
-  min-height: 48px; padding: 0 18px; border-radius: 12px; border: 1px solid transparent; cursor: pointer;
+  min-height: 48px; padding: 0 18px; border-radius: 10px; border: 1px solid transparent; cursor: pointer;
   font: 700 15px var(--display); letter-spacing: .01em; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
 }
 .btn:disabled { opacity: .55; cursor: default; }
 .btn-primary { background: var(--amber); color: var(--on-amber); }
-.btn-quiet { background: var(--raised); color: var(--text); border-color: var(--edge); }
-.btn-danger { background: transparent; color: var(--red-text); border-color: #7a2421; }
+.btn-quiet { background: transparent; color: var(--soft); }
+.btn-quiet:hover { color: var(--text); text-decoration: underline; text-underline-offset: 4px; }
+.btn-danger { background: transparent; color: var(--red-text); }
+.btn-danger:hover { text-decoration: underline; text-underline-offset: 4px; }
 .btn-block { width: 100%; }
 .btn-row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 8px; }
 .btn-row .btn { flex: 1 1 auto; }
@@ -123,12 +126,33 @@ input[type="checkbox"] { width: 22px; min-height: 22px; height: 22px; accent-col
 }
 .icon-btn:disabled { opacity: .3; cursor: default; }
 .link-btn { background: none; border: 0; padding: 6px 0; color: var(--amber); font: 700 14px var(--display); cursor: pointer; }
-.chip {
-  min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--edge); background: var(--raised);
-  color: var(--text); font: 600 14px var(--display); cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
-}
-.chip[aria-pressed="true"] { background: var(--amber); border-color: var(--amber); color: var(--on-amber); }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Controls (Alex, 10 Nov 2026: no pills). A choice between a few options is words with a rule under the chosen
+   one, as a newspaper's section navigation (style B). A list is a grouped panel; its actions are words, the main one
+   in amber; a row that opens something has a chevron; picking from a list puts a check by the chosen row (style C).
+   Status is a small-caps word coloured by what it means. */
+.word-tabs { display: flex; flex-wrap: wrap; gap: 2px 20px; border-bottom: 1px solid var(--line); }
+.word-tab { min-height: 42px; padding: 0; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none;
+  color: var(--muted); font: 600 15px var(--display); cursor: pointer; }
+.word-tab:hover { color: var(--soft); }
+.word-tab[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--amber); }
+.group { background: var(--panel); border-radius: 12px; padding: 0 14px; }
+.sheet .group, .sheet .pick-list, .sheet .rows { background: #191510; } /* (a little lighter than the sheet itself) */
+.group > :last-child, .group > :last-child.item, .group > .tx:last-child, .group > .row:last-child { border-bottom: 0; }
+.pick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); column-gap: 18px;
+  background: var(--panel); border-radius: 12px; padding: 0 14px; }
+.pick { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0; border: 0; border-bottom: 1px solid var(--line);
+  background: none; color: var(--text); font: 600 15px var(--display); text-align: left; cursor: pointer; }
+.pick > span:last-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick:hover { color: var(--amber); }
+.pick[aria-pressed="true"]::after { content: ""; width: 6px; height: 11px; margin: 0 4px 3px 0; border: solid var(--amber); border-width: 0 2px 2px 0; transform: rotate(45deg); flex: none; }
+.pick.go::after { content: "›"; color: var(--muted); font: 400 20px/1 var(--body); }
+.act { min-height: 40px; padding: 0 2px; border: 0; background: none; color: var(--soft); font: 700 14px var(--display); cursor: pointer; }
+.act:hover { color: var(--text); text-decoration: underline; text-underline-offset: 4px; }
+.act-main { color: var(--amber); }
+.act-main:hover { color: var(--amber); }
+.tag { font: 700 12px var(--display); font-variant: small-caps; text-transform: lowercase; letter-spacing: .07em; color: var(--muted); }
+.tag-otso { color: var(--soft); }
+.tag-check { color: var(--amber); }
 .dot { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
 
 /* ---------- The app's frame ---------- */
@@ -196,7 +220,8 @@ main { position: relative; z-index: 1; max-width: 640px; margin: 0 auto;
 
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .section-title { font: 700 13px var(--display); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); margin: 0; }
-.rows { display: grid; }
+.rows { display: grid; background: var(--panel); border-radius: 12px; padding: 0 14px; }
+.rows > .row:last-child { border-bottom: 0; }
 .row {
   display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; align-items: center; padding: 12px 0;
   border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; width: 100%; cursor: pointer;
@@ -219,7 +244,7 @@ main { position: relative; z-index: 1; max-width: 640px; margin: 0 auto;
 .found { color: var(--soft); font-size: .92rem; }
 .found b { font-family: var(--display); }
 .day { display: grid; }
-.day-head { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 0 4px;
+.day-head { display: flex; justify-content: space-between; align-items: baseline; padding: 16px 0 8px;
   font: 700 13px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .tx { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 12px; align-items: center; padding: 11px 0;
   border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; width: 100%; cursor: pointer; }
@@ -228,9 +253,7 @@ main { position: relative; z-index: 1; max-width: 640px; margin: 0 auto;
 .tx-desc { color: var(--muted); font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tx-amount { font: 700 16px var(--display); font-variant-numeric: tabular-nums; text-align: right; }
 .tx-meta { display: flex; gap: 6px; justify-content: flex-end; margin-top: 2px; }
-.src { font: 700 10.5px var(--display); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
-.src-otso { color: var(--amber); border-color: #4a3613; }
-.flagged { font: 700 10.5px var(--display); letter-spacing: .07em; text-transform: uppercase; color: var(--on-amber); background: var(--amber); border-radius: 5px; padding: 1px 5px; }
+
 
 /* ---------- Otso's desk ---------- */
 .desk-intro { color: var(--soft); margin: 0; }
@@ -238,9 +261,8 @@ main { position: relative; z-index: 1; max-width: 640px; margin: 0 auto;
 .item-text { min-width: 0; display: grid; gap: 2px; }
 .item-title { font-weight: 700; }
 .item-sub { color: var(--muted); font-size: .9rem; }
-.item-actions { display: flex; gap: 6px; }
-.small-btn { min-height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--edge); background: var(--raised); color: var(--text); font: 700 13px var(--display); cursor: pointer; }
-.small-btn.primary { background: var(--amber); border-color: var(--amber); color: var(--on-amber); }
+.item-actions { display: flex; gap: 16px; }
+
 .letter { border-bottom: 1px solid var(--line); }
 .letter summary { list-style: none; cursor: pointer; padding: 12px 0; display: flex; justify-content: space-between; gap: 12px; font-weight: 700; }
 .letter summary::-webkit-details-marker { display: none; }
@@ -268,12 +290,13 @@ body.has-sheet { overflow: hidden; }
 /* the log sheet */
 .amount-input { font: 800 48px/1.1 var(--display) !important; letter-spacing: -.03em; min-height: 76px !important; padding: 8px 12px !important; background: transparent !important; border: 0 !important; border-bottom: 2px solid var(--amber) !important; border-radius: 0 !important; }
 .amount-input:focus { outline: none !important; }
-.cat-chips .chip .dot { width: 9px; height: 9px; }
+
 .hint { color: var(--muted); font-size: .88rem; margin: -6px 0 0; }
 
 /* settings */
 .menu { display: grid; }
-.menu-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 15px 0; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; cursor: pointer; width: 100%; }
+.menu-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; cursor: pointer; width: 100%; }
+.menu-item:last-child { border-bottom: 0; }
 .menu-item b { font: 700 17px var(--display); }
 .menu-item span { color: var(--muted); font-size: .9rem; }
 .cat-row { display: grid; grid-template-columns: auto auto 1fr auto auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); background: var(--surface); }

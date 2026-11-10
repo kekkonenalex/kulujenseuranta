@@ -20,16 +20,16 @@ export function openLog() {
   const body = openSheet('Log an expense', `
     <label for="log-amount" class="label">Amount, €</label>
     <input id="log-amount" class="amount-input num" inputmode="decimal" autocomplete="off" placeholder="0,00" aria-describedby="log-hint">
-    <p class="hint" id="log-hint">Then tap the category: that saves it.</p>
-    <div class="chips cat-chips" role="group" aria-label="Category, saves">${cats.map((c) => `
-      <button type="button" class="chip" data-cat="${escapeHtml(c.id)}"><span class="dot" style="background:${safeColor(c.color)}"></span>${escapeHtml(c.name)}</button>`).join('')}</div>
-    <div class="chips" role="group" aria-label="Day">
-      <button type="button" class="chip" data-day="${today}" aria-pressed="true">Today</button>
-      <button type="button" class="chip" data-day="${addDaysISO(today, -1)}" aria-pressed="false">Yesterday</button>
-      <button type="button" class="chip" data-day="pick" aria-pressed="false">Another day</button>
-      <input type="date" id="log-date" value="${today}" aria-label="The day" hidden>
+    <p class="hint" id="log-hint">Add a note if you like, then tap the category: that saves it.</p>
+    <div class="word-tabs" role="group" aria-label="Day">
+      <button type="button" class="word-tab" data-day="${today}" aria-pressed="true">Today</button>
+      <button type="button" class="word-tab" data-day="${addDaysISO(today, -1)}" aria-pressed="false">Yesterday</button>
+      <button type="button" class="word-tab" data-day="pick" aria-pressed="false">Another day</button>
     </div>
+    <input type="date" id="log-date" value="${today}" aria-label="The day" hidden>
     <div class="field"><label for="log-note">Note</label><input id="log-note" maxlength="300" placeholder="Prisma, lunch with Venny…" autocomplete="off"></div>
+    <div class="pick-list" role="group" aria-label="Category, saves">${cats.map((c) => `
+      <button type="button" class="pick go" data-cat="${escapeHtml(c.id)}"><span class="dot" style="background:${safeColor(c.color)}"></span><span>${escapeHtml(c.name)}</span></button>`).join('')}</div>
     <p id="log-error" class="alert alert-error" role="alert" hidden></p>`, { focus: '#log-amount' });
 
   const amount = body.querySelector('#log-amount');

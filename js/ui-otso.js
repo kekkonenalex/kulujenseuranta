@@ -31,7 +31,7 @@ export function renderOtso(panel) {
 
     <section aria-labelledby="flags-head">
       <div class="section-head"><h2 class="section-title" id="flags-head">Worth a look</h2><span class="muted small">${found.length || 'none'}</span></div>
-      ${found.length ? found.map(flagHtml).join('') : '<p class="empty">Nothing looks off: no doubles, nothing far bigger than usual.</p>'}
+      ${found.length ? `<div class="group">${found.map(flagHtml).join('')}</div>` : '<p class="empty">Nothing looks off: no doubles, nothing far bigger than usual.</p>'}
     </section>
     </div>
     <div class="col col-side">
@@ -39,13 +39,13 @@ export function renderOtso(panel) {
     <section aria-labelledby="logged-head">
       <div class="section-head"><h2 class="section-title" id="logged-head">Logged by Otso, last 7 days</h2>
         <span class="muted small num">${escapeHtml(formatMoney(logged.reduce((s, tx) => s + tx.amount_cents, 0)))}</span></div>
-      ${logged.length ? logged.slice(0, SHOWN).map(loggedHtml).join('') : `<p class="empty">${token ? 'Nothing this week.' : 'Otso logs with its own token (Settings, Connections).'}</p>`}
+      ${logged.length ? `<div class="group">${logged.slice(0, SHOWN).map(loggedHtml).join('')}</div>` : `<p class="empty">${token ? 'Nothing this week.' : 'Otso logs with its own token (Settings, Connections).'}</p>`}
       ${logged.length > SHOWN ? `<button type="button" class="link-btn" data-all-otso>All ${logged.length} in Expenses</button>` : ''}
     </section>
 
     <section aria-labelledby="letters-head">
       <div class="section-head"><h2 class="section-title" id="letters-head">Monthly letters</h2></div>
-      ${kept.length ? kept.map(letterHtml).join('') : '<p class="empty">On the 1st, Otso writes how last month went. It\'ll be kept here.</p>'}
+      ${kept.length ? `<div class="group">${kept.map(letterHtml).join('')}</div>` : '<p class="empty">On the 1st, Otso writes how last month went. It\'ll be kept here.</p>'}
     </section>
     </div>`;
 
@@ -82,8 +82,8 @@ function flagHtml(flag) {
   return `<div class="item">
     <div class="item-text"><span class="item-title">${escapeHtml(formatMoney(flag.tx.amount_cents))} · ${escapeHtml(cat ? cat.name : '')} · ${escapeHtml(formatDay(flag.tx.occurred_on))}</span>
       <span class="item-sub">${escapeHtml(flag.reason)}</span></div>
-    <div class="item-actions"><button type="button" class="small-btn" data-ok="${escapeHtml(flag.key)}">It's right</button>
-      <button type="button" class="small-btn primary" data-open="${escapeHtml(flag.tx.id)}">Fix</button></div>
+    <div class="item-actions"><button type="button" class="act" data-ok="${escapeHtml(flag.key)}">It's right</button>
+      <button type="button" class="act act-main" data-open="${escapeHtml(flag.tx.id)}">Fix</button></div>
   </div>`;
 }
 
@@ -93,7 +93,7 @@ function loggedHtml(tx) {
     <button type="button" class="item-text" data-open="${escapeHtml(tx.id)}" style="background:none;border:0;text-align:left;padding:0;cursor:pointer">
       <span class="item-title">${escapeHtml(tx.description || (cat ? cat.name : 'Expense'))} · ${escapeHtml(formatMoney(tx.amount_cents))}</span>
       <span class="item-sub">${escapeHtml(cat ? cat.name : '')} · ${escapeHtml(formatDay(tx.occurred_on))}</span></button>
-    <div class="item-actions"><button type="button" class="small-btn" data-undo="${escapeHtml(tx.id)}">Undo</button></div>
+    <div class="item-actions"><button type="button" class="act act-main" data-undo="${escapeHtml(tx.id)}">Undo</button></div>
   </div>`;
 }
 

@@ -170,7 +170,7 @@ function openCategory(categoryId) {
   const body = openSheet(name, `
     <p class="hero-sub"><b class="num">${escapeHtml(formatMoney(total))}</b> in ${escapeHtml(monthName(month))}, biggest first${row ? ` · budget ${escapeHtml(formatMoney(row.amount_cents))}${kind === 'month' ? ' (this month only)' : ''}` : ''}</p>
     ${usual}
-    <div>${lines || '<p class="empty">Nothing this month.</p>'}</div>
+    ${lines ? `<div class="group">${lines}</div>` : '<p class="empty">Nothing this month.</p>'}
     ${cat ? '<div class="btn-row"><button type="button" class="btn btn-quiet" data-budget>Set the budget</button></div>' : ''}
   `);
   body.querySelectorAll('[data-tx]').forEach((el) => el.addEventListener('click', () => openExpense(el.dataset.tx)));
@@ -187,9 +187,9 @@ export function openBudget(categoryId, month = state.month, after = null) {
   const body = openSheet(`Budget: ${cat.name}`, `
     <div class="field"><label for="budget-amount">Euros a month</label>
       <input id="budget-amount" inputmode="decimal" autocomplete="off" value="${row ? escapeHtml(formatAmount(row.amount_cents)) : ''}" placeholder="250"></div>
-    <div class="chips" role="group" aria-label="Which months">
-      <button type="button" class="chip" data-scope="all" aria-pressed="${kind !== 'month'}">Every month</button>
-      <button type="button" class="chip" data-scope="month" aria-pressed="${kind === 'month'}">${escapeHtml(monthName(month))} only</button>
+    <div class="word-tabs" role="group" aria-label="Which months">
+      <button type="button" class="word-tab" data-scope="all" aria-pressed="${kind !== 'month'}">Every month</button>
+      <button type="button" class="word-tab" data-scope="month" aria-pressed="${kind === 'month'}">${escapeHtml(monthName(month))} only</button>
     </div>
     <p class="hint">A month of its own keeps the every-month budget for the other months.</p>
     <p id="budget-error" class="alert alert-error" role="alert" hidden></p>
