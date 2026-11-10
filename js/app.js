@@ -24,8 +24,13 @@ const VIEWS = {
 const RELOAD_AFTER_MS = 60_000; // back from the background after this long: the data is read again
 let lastLoadedAt = 0;
 
+/** The loading screen goes once there's something to look at: the month drawn, or the sign-in. */
+function ready() {
+  document.documentElement.classList.add('ready');
+}
+
 function showScreen(which) {
-  show(qs('#boot'), which === 'boot');
+  if (which !== 'boot' && which !== 'app') ready();
   show(qs('#view-config'), which === 'config');
   show(qs('#view-auth'), which === 'auth');
   show(qs('#view-app'), which === 'app');
@@ -68,12 +73,14 @@ async function loadData() {
     income: income || [], paydays: paydays || [], notes: notes || [],
     hasBuild1: income !== null && notes !== null,
   });
+  ready();
 }
 
 export async function reloadData() {
   try {
     await loadData();
   } catch (err) {
+    ready(); // (what's on screen, with the error said, beats the bear breathing for ever)
     toast(err.message, 'error');
   }
 }
@@ -118,7 +125,7 @@ async function handleSignIn(event) {
 /* ---------- Wiring ---------- */
 
 function wire() {
-  qs('#boot-mark').innerHTML = mark(72);
+  qs('#boot-mark').innerHTML = mark(96);
   qs('#auth-mark').innerHTML = mark(52);
   qs('#topbar-mark').innerHTML = mark(28);
   qs('#btn-settings').innerHTML = icon('settings');

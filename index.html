@@ -16,17 +16,28 @@
   <title>Otso - Expenses</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
-  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="apple-touch-icon" href="icons/icon-180.png?v=2">
+  <!-- What the iPhone shows while the app starts: the loading screen's picture (tools/make_icons.py). -->
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-390x844.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-393x852.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-402x874.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-430x932.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/launch-440x956.png">
   <link rel="preload" href="fonts/schibsted-grotesk-700-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/atkinson-hyperlegible-400-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- Loading -->
-  <div id="boot" class="screen-center">
-    <div class="rays rays-boot" aria-hidden="true"></div>
+  <!-- The loading screen, until there's something to look at: the bear in rays and the name, on black, where the
+       iPhone's launch image (icons/launch-*.png) has them, so opening the app has no flash or jump. -->
+  <div id="boot" class="boot" aria-hidden="true">
     <div class="boot-mark" id="boot-mark"></div>
+    <p class="boot-name">Expenses</p>
   </div>
+
+  <!-- iOS 26 blurs the top edge of a home-screen app unless a fixed, full-width, solid box covers it; then it uses
+       that box's colour (the same fix as the Otso app's, 6 Nov 2026). -->
+  <div class="edge" aria-hidden="true"></div>
 
   <!-- No settings -->
   <section id="view-config" class="screen-center" hidden>

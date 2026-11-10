@@ -62,6 +62,23 @@ code { font-size: .9em; color: var(--soft); }
 .rays-top { position: fixed; height: 210px; opacity: .26; }
 .rays-boot { height: 46vh; opacity: .3; }
 
+/* The top edge, solid: iOS 26 draws its scroll-edge blur over an installed web app's top unless the edge is a fixed,
+   full-width box with a plain background (over 10 px tall, taking touches: no backdrop-filter, no mask, no
+   pointer-events: none). */
+.edge { position: fixed; top: 0; left: 0; right: 0; height: max(12px, env(safe-area-inset-top, 0px)); background: #000; z-index: 60; }
+
+/* The loading screen: the bear 96 px wide, its centre 44% down, the name under it, as the launch image has them.
+   It breathes, slowly, and goes once there's something to look at (app.js: html.ready). */
+.boot { position: fixed; inset: 0; z-index: 70; background: #000; transition: opacity .28s ease, visibility 0s linear .28s; }
+.boot-mark { position: absolute; left: 50%; top: 44%; width: 96px; height: 96px; transform: translate(-50%, -50%); }
+.boot-mark svg { display: block; width: 96px; height: 96px; animation: boot-breathe 2.4s ease-in-out infinite; }
+.boot-name { position: absolute; left: 50%; top: calc(44% + 48px + 22px); margin: 0; transform: translateX(-50%);
+  padding-left: .32em; font: 600 15px/1 var(--display); letter-spacing: .32em; text-transform: uppercase; color: #f3efe7; }
+@keyframes boot-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .62; } }
+@media (prefers-reduced-motion: reduce) { .boot-mark svg { animation: none; } }
+.ready .boot { opacity: 0; visibility: hidden; }
+.ready .boot-mark svg { animation: none; }
+
 /* ---------- Boot, settings missing, signing in ---------- */
 .screen-center { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; position: relative;
   padding: 24px var(--gutter-r) 24px var(--gutter); }
@@ -116,7 +133,7 @@ input[type="checkbox"] { width: 22px; min-height: 22px; height: 22px; accent-col
 /* ---------- The app's frame ---------- */
 #view-app { position: relative; min-height: 100vh; min-height: 100dvh; }
 .topbar {
-  position: sticky; top: 0; z-index: 5; padding: calc(env(safe-area-inset-top, 0px) + 8px) var(--gutter-r) 6px var(--gutter);
+  position: sticky; top: 0; z-index: 5; padding: calc(env(safe-area-inset-top, 0px) + 14px) var(--gutter-r) 6px var(--gutter);
   background: var(--bg);
 }
 .topbar::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 14px; background: linear-gradient(to bottom, var(--bg), rgba(0,0,0,0)); pointer-events: none; }

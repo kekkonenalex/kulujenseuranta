@@ -72,8 +72,9 @@ def outline(path: str, steps: int = 24) -> list[tuple[float, float]]:
     return points
 
 
-def draw(size: int, rounded: bool, inset: float) -> Image.Image:
-    """The icon at `size`. `inset`: the bear's share of the square (smaller for the maskable safe zone)."""
+def draw(size: int, rounded: bool, inset: float, shift: float = 2) -> Image.Image:
+    """The icon at `size`. `inset`: the bear's share of the square (smaller for the maskable safe zone). `shift`: how far
+    down the bear sits, in its own units (2 in the icons, for the optical centre; 0 to match the page's mark)."""
     scale = 4  # drawn large and shrunk: smooth edges
     big = size * scale
     image = Image.new("RGBA", (big, big), (0, 0, 0, 0))
@@ -81,7 +82,7 @@ def draw(size: int, rounded: bool, inset: float) -> Image.Image:
                                             fill=(0, 0, 0, 255))
     unit = big * inset / 100 / 100  # bear units (0-100) to pixels: the bear takes `inset`% of the square
     off = (big - 100 * unit) / 2
-    to_px = lambda p: (off + p[0] * unit, off + p[1] * unit + unit * 2)  # noqa: E731 (a little lower: optical centre)
+    to_px = lambda p: (off + p[0] * unit, off + p[1] * unit + unit * shift)  # noqa: E731 (a little lower: optical centre)
 
     mask = Image.new("L", (big, big), 0)
     shape = ImageDraw.Draw(mask)
@@ -131,6 +132,31 @@ SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
 """
 
 
+# The iPhones' launch images: what shows while the installed app starts, the same picture as the page's loading screen
+# (the bear 96 px wide, its centre 44% down; the name under it), so the one turns into the other without a jump.
+LAUNCH = [(390, 844), (393, 852), (402, 874), (430, 932), (440, 956)]
+FONT = Path(__file__).resolve().parents[1] / "fonts" / "schibsted-grotesk-600-latin.woff2"
+
+
+def launch(width: int, height: int, scale: int = 3) -> Image.Image:
+    from PIL import ImageFont
+
+    w, h = width * scale, height * scale
+    image = Image.new("RGB", (w, h), (0, 0, 0))
+    bear = draw(96 * scale, rounded=False, inset=100, shift=0)
+    image.paste(bear, (round(w / 2 - bear.width / 2), round(h * 0.44 - bear.height / 2)), bear)
+    font = ImageFont.truetype(str(FONT), 15 * scale)
+    text, spacing = "EXPENSES", 0.32 * 15 * scale
+    widths = [font.getlength(ch) for ch in text]
+    total = sum(widths) + spacing * (len(text) - 1)
+    x, y = w / 2 - total / 2, h * 0.44 + (48 + 22) * scale
+    pen = ImageDraw.Draw(image)
+    for ch, cw in zip(text, widths):
+        pen.text((x, y), ch, font=font, fill=(243, 239, 231))
+        x += cw + spacing
+    return image
+
+
 def main() -> None:
     HERE.mkdir(exist_ok=True)
     rays = "".join(f'<rect x="{x}" width="2.4" height="100"/>' for x in range(10, 90, 5))
@@ -139,6 +165,8 @@ def main() -> None:
     draw(192, rounded=True, inset=82).save(HERE / "icon-192.png")
     draw(512, rounded=True, inset=82).save(HERE / "icon-512.png")
     draw(512, rounded=False, inset=64).convert("RGB").save(HERE / "icon-512-maskable.png")  # (the safe zone)
+    for width, height in LAUNCH:
+        launch(width, height).save(HERE / f"launch-{width}x{height}.png", optimize=True)
     print("icons written")
 
 
