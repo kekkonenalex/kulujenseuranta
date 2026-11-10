@@ -14,6 +14,8 @@ export const state = {
   income: [],         // { id, amount_cents, received_on, source, note, payday_id }
   paydays: [],        // { id, name, amount_cents, day_of_month, starts_on, ends_on }
   notes: [],          // Otso's: { id, key, kind, title, body, month, dismissed_at, updated_at }
+  monthlyBudgets: [], // the budget for everything: { id, year_month (null: every month), amount_cents }
+  hasMonthly: true,   // false while the database hasn't had sql/build1b.sql
   hasBuild1: true,    // false while the database hasn't had sql/build1.sql
   month: currentMonth(),
   view: 'month',
@@ -133,6 +135,15 @@ export function budgetCentsFor(categoryId, month = state.month) {
   return row ? row.amount_cents : null;
 }
 
+/** The month's budget for everything: its own, else the every-month one; { row, kind } or kind 'none'. */
+export function monthlyBudgetFor(month = state.month) {
+  const own = state.monthlyBudgets.find((b) => b.year_month === month);
+  if (own) return { row: own, kind: 'month' };
+  const every = state.monthlyBudgets.find((b) => !b.year_month);
+  if (every) return { row: every, kind: 'default' };
+  return { row: null, kind: 'none' };
+}
+
 /* ---------- History: what's usual by this day, and where the month is heading (N2, N8) ---------- */
 
 const HISTORY_MONTHS = 3;
@@ -215,10 +226,15 @@ export function monthSummary(month = state.month) {
   rows.sort((a, b) => b.spentCents - a.spentCents);
   const total = rows.reduce((s, r) => s + r.spentCents, 0);
   const budgeted = rows.filter((r) => r.budgetCents !== null);
+  const categoriesBudget = budgeted.reduce((s, r) => s + r.budgetCents, 0);
+  // The month's budget: the one for everything when it's set (against everything spent), else the
+  // categories' budgets added up (against what's spent in them).
+  const monthly = monthlyBudgetFor(month);
   return {
-    month, total, count: monthTransactions(month).length, rows,
-    budgetTotal: budgeted.reduce((s, r) => s + r.budgetCents, 0),
-    budgetedSpent: budgeted.reduce((s, r) => s + r.spentCents, 0),
+    month, total, count: monthTransactions(month).length, rows, categoriesBudget,
+    budgetTotal: monthly.row ? monthly.row.amount_cents : categoriesBudget,
+    budgetedSpent: monthly.row ? total : budgeted.reduce((s, r) => s + r.spentCents, 0),
+    budgetKind: monthly.row ? (monthly.kind === 'month' ? 'month' : 'every') : 'categories',
   };
 }
 

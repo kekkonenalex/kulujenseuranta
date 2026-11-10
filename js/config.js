@@ -13,4 +13,4 @@ export const SUPABASE_URL = 'https://wqibkufakgdmzcovmdos.supabase.co';
 export const SUPABASE_ANON_KEY = 'sb_publishable_f1A4zFIkN6pwnm8MRyk_1g_Dbt194dP';
 
 // Shown in Settings, and in the service worker's cache name (sw.js VERSION must match).
-export const APP_VERSION = '2.0.1';
+export const APP_VERSION = '2.1.0';

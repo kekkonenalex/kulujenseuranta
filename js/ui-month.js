@@ -26,12 +26,15 @@ export function renderMonth(panel) {
   const net = netFor(month);
   const card = isNow ? readCard() : null;
 
+  // Two columns on a laptop (the month on the left, its categories on the right); one on a phone.
   panel.innerHTML = `
-    ${hero(summary, pace, isNow)}
-    ${rays(month)}
-    ${card ? readHtml(card) : ''}
-    ${moneyHtml(net, isNow)}
-    ${categoriesHtml(summary)}
+    <div class="col col-main">
+      ${hero(summary, pace, isNow)}
+      ${rays(month)}
+      ${card ? readHtml(card) : ''}
+      ${moneyHtml(net, isNow)}
+    </div>
+    <div class="col col-side">${categoriesHtml(summary)}</div>
   `;
 
   const dismiss = panel.querySelector('[data-dismiss-read]');
@@ -46,7 +49,8 @@ function hero(summary, pace, isNow) {
   const bits = [];
   if (budget) {
     const over = summary.budgetedSpent > budget;
-    bits.push(`of <b class="num">${escapeHtml(formatMoneyWhole(budget))}</b> budget${over ? ` · <span class="over">${escapeHtml(formatMoneyWhole(summary.budgetedSpent - budget))} over</span>` : ''}`);
+    const whose = summary.budgetKind === 'month' ? ` (${escapeHtml(monthName(summary.month))}'s own)` : '';
+    bits.push(`of <b class="num">${escapeHtml(formatMoneyWhole(budget))}</b> budget${whose}${over ? ` · <span class="over">${escapeHtml(formatMoneyWhole(summary.budgetedSpent - budget))} over</span>` : ''}`);
   }
   if (pace) {
     bits.push(`usually <b class="num">${escapeHtml(formatMoneyWhole(pace.usualByNow))}</b> by the ${ordinal(pace.day)}`);
@@ -176,7 +180,7 @@ function openCategory(categoryId) {
 
 /* ---------- A category's budget: every month, or this month only ---------- */
 
-export function openBudget(categoryId, month = state.month) {
+export function openBudget(categoryId, month = state.month, after = null) {
   const cat = categoryById(categoryId);
   if (!cat) return;
   const { row, kind } = budgetRowFor(categoryId, month);
@@ -211,7 +215,7 @@ export function openBudget(categoryId, month = state.month) {
     try {
       const saved = await db.saveBudget({ id: existing ? existing.id : null, categoryId, yearMonth, amountCents: cents });
       setState({ budgets: existing ? state.budgets.map((b) => (b.id === saved.id ? saved : b)) : [...state.budgets, saved] });
-      closeSheet();
+      if (after) after(); else closeSheet();
       toast('Budget saved');
     } catch (err) {
       showError(errorBox, err.message);
@@ -223,7 +227,7 @@ export function openBudget(categoryId, month = state.month) {
     try {
       await db.deleteBudget(row.id);
       setState({ budgets: state.budgets.filter((b) => b.id !== row.id) });
-      closeSheet();
+      if (after) after(); else closeSheet();
       toast(kind === 'month' ? `${monthName(month)}'s own budget removed` : 'Budget removed');
     } catch (err) {
       toast(err.message, 'error');

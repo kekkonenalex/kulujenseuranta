@@ -22,6 +22,7 @@ export function renderOtso(panel) {
   const token = otsoToken();
 
   panel.innerHTML = `
+    <div class="col col-main">
     <p class="desk-intro">What Otso did here and what it noticed. Nothing here sends you anything: Otso's messages stay in Telegram.</p>
     ${setupHtml(token)}
     ${card ? `<section class="read" aria-label="Otso's read"><div class="read-head"><span class="read-kicker">Otso's read</span>
@@ -32,6 +33,8 @@ export function renderOtso(panel) {
       <div class="section-head"><h2 class="section-title" id="flags-head">Worth a look</h2><span class="muted small">${found.length || 'none'}</span></div>
       ${found.length ? found.map(flagHtml).join('') : '<p class="empty">Nothing looks off: no doubles, nothing far bigger than usual.</p>'}
     </section>
+    </div>
+    <div class="col col-side">
 
     <section aria-labelledby="logged-head">
       <div class="section-head"><h2 class="section-title" id="logged-head">Logged by Otso, last 7 days</h2>
@@ -43,7 +46,8 @@ export function renderOtso(panel) {
     <section aria-labelledby="letters-head">
       <div class="section-head"><h2 class="section-title" id="letters-head">Monthly letters</h2></div>
       ${kept.length ? kept.map(letterHtml).join('') : '<p class="empty">On the 1st, Otso writes how last month went. It\'ll be kept here.</p>'}
-    </section>`;
+    </section>
+    </div>`;
 
   const hide = panel.querySelector('[data-hide-read]');
   if (hide) hide.addEventListener('click', async () => {

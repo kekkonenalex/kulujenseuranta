@@ -7,9 +7,11 @@ import * as db from './db.js';
 import { APP_VERSION } from './config.js';
 import {
   state, setState, allCategoriesSorted, nextSortOrder, transactionCountByCategory, budgetRowFor, incomeFor,
+  monthlyBudgetFor,
 } from './state.js';
 import {
   formatMoney, formatDate, formatDay, parseAmountToCents, formatAmount, todayISO, isValidISODate, monthName, ordinal,
+  monthLabel, addMonths,
 } from './format.js';
 import {
   qs, escapeHtml, safeColor, openSheet, closeSheet, toast, setBusy, showError, clearError, confirmSheet,
@@ -24,7 +26,7 @@ const PALETTE = ['#f5b544', '#d9772f', '#e8d5a8', '#8fa3ad', '#b4532a', '#c9a227
 
 const SECTIONS = [
   ['categories', 'Categories', 'Names, colours, order', openCategories],
-  ['budgets', 'Budgets', 'A monthly budget per category', openBudgets],
+  ['budgets', 'Budgets', 'The month, and each category', () => openBudgets(state.month)],
   ['income', 'Income', 'Paydays, and income that came', openIncome],
   ['connections', 'Connections', 'The iPhone Shortcut and Otso', openConnections],
   ['data', 'Data', 'Excel export, backup', openData],
@@ -216,20 +218,100 @@ async function saveOrder(ids) {
 
 /* ---------- Budgets ---------- */
 
-function openBudgets() {
+/* The budgets: one for the whole month (every month, and a month of its own where it differs), and the
+   categories' budgets inside it, every month or one month. The month at the top picks which month the
+   month-only budgets are for (Alex, 10 Nov 2026: "one budget that goes for every month, and change it for a
+   specific month"). */
+let budgetMonth = null;
+
+function openBudgets(month = budgetMonth || state.month) {
+  budgetMonth = month;
   const cats = allCategoriesSorted().filter((c) => !c.archived);
-  const total = cats.reduce((s, c) => s + (budgetRowFor(c.id).row ? budgetRowFor(c.id).row.amount_cents : 0), 0);
+  const monthly = monthlyBudgetFor(month);
+  const every = state.monthlyBudgets.find((b) => !b.year_month) || null;
+  const own = state.monthlyBudgets.find((b) => b.year_month === month) || null;
+  const catsTotal = cats.reduce((sum, c) => { const r = budgetRowFor(c.id, month).row; return sum + (r ? r.amount_cents : 0); }, 0);
+  const name = monthName(month);
+  let fits = '';
+  if (monthly.row) {
+    fits = catsTotal > monthly.row.amount_cents
+      ? `<p class="alert alert-info">The categories' budgets add up to ${escapeHtml(formatMoney(catsTotal))}, ${escapeHtml(formatMoney(catsTotal - monthly.row.amount_cents))} more than the month's budget.</p>`
+      : `<p class="hint">The categories' budgets add up to ${escapeHtml(formatMoney(catsTotal))}; ${escapeHtml(formatMoney(monthly.row.amount_cents - catsTotal))} of the month's budget isn't given to a category.</p>`;
+  }
+  const whole = state.hasMonthly ? `
+    <div class="rows">
+      <button type="button" class="row" data-monthly="every"><span class="dot" style="background:var(--amber)"></span>
+        <span class="row-name">Every month</span>
+        <span class="row-amount">${every ? escapeHtml(formatMoney(every.amount_cents)) : '<small>not set</small>'}</span>
+        <span class="row-sub">${every ? 'the budget for everything you spend in a month' : 'set one budget for everything, every month'}</span></button>
+      <button type="button" class="row" data-monthly="month"><span class="dot" style="background:${own ? 'var(--amber)' : 'var(--line)'}"></span>
+        <span class="row-name">${escapeHtml(name)} only</span>
+        <span class="row-amount">${own ? escapeHtml(formatMoney(own.amount_cents)) : '<small>as every month</small>'}</span>
+        <span class="row-sub">${own ? `${escapeHtml(name)}'s own budget, instead of every month's` : `a different budget for ${escapeHtml(name)}`}</span></button>
+    </div>${fits}`
+    : "<p class=\"alert alert-info\">The month's own budget needs a small database update: paste <code>sql/build1b.sql</code> into Supabase's SQL Editor.</p>";
   const body = openSheet('Budgets', back(`
-    <p class="hint">${escapeHtml(monthName(state.month))}: ${escapeHtml(formatMoney(total))} in all. Tap one to change it.</p>
+    <div class="month-nav sheet-month" aria-label="Month">
+      <button type="button" class="icon-btn" data-m="-1" aria-label="Previous month">${icon('prev')}</button>
+      <span class="month-label">${escapeHtml(monthLabel(month))}</span>
+      <button type="button" class="icon-btn" data-m="1" aria-label="Next month">${icon('next')}</button>
+    </div>
+    <h3 class="section-title">The whole month</h3>
+    ${whole}
+    <h3 class="section-title">Categories, ${escapeHtml(name)}</h3>
     <div class="rows">${cats.map((c) => {
-      const { row, kind } = budgetRowFor(c.id);
+      const { row, kind } = budgetRowFor(c.id, month);
+      const sub = kind === 'month' ? `${escapeHtml(name)} only` : kind === 'default' ? 'every month' : 'no budget';
       return `<button type="button" class="row" data-budget="${escapeHtml(c.id)}"><span class="dot" style="background:${safeColor(c.color)}"></span>
         <span class="row-name">${escapeHtml(c.name)}</span>
         <span class="row-amount">${row ? escapeHtml(formatMoney(row.amount_cents)) : '<small>none</small>'}</span>
-        ${kind === 'month' ? `<span class="row-sub">${escapeHtml(monthName(state.month))} only</span>` : ''}</button>`;
+        <span class="row-sub">${sub}</span></button>`;
     }).join('')}</div>`));
   wireBack(body);
-  body.querySelectorAll('[data-budget]').forEach((el) => el.addEventListener('click', () => openBudget(el.dataset.budget)));
+  body.querySelectorAll('[data-m]').forEach((el) => el.addEventListener('click', () => openBudgets(addMonths(month, Number(el.dataset.m)))));
+  body.querySelectorAll('[data-budget]').forEach((el) => el.addEventListener('click', () => openBudget(el.dataset.budget, month, () => openBudgets(month))));
+  body.querySelectorAll('[data-monthly]').forEach((el) => el.addEventListener('click', () => editMonthly(el.dataset.monthly === 'every' ? null : month)));
+}
+
+/** The budget for everything: every month (yearMonth null) or one month's own. */
+function editMonthly(yearMonth) {
+  const month = budgetMonth || state.month;
+  const row = state.monthlyBudgets.find((b) => (b.year_month || null) === yearMonth) || null;
+  const title = yearMonth ? `${monthName(yearMonth)}'s budget` : 'Every month';
+  const text = yearMonth
+    ? `A budget for everything in ${escapeHtml(monthLabel(yearMonth))}, instead of every month's. The other months keep every month's.`
+    : "One budget for everything you spend in a month. The month shows what's spent against it, and any month can have its own.";
+  const body = openSheet(title, `
+    <p class="sheet-text">${text}</p>
+    <div class="field"><label for="mb-amount">Euros</label>
+      <input id="mb-amount" inputmode="decimal" autocomplete="off" value="${row ? escapeHtml(formatAmount(row.amount_cents)) : ''}" placeholder="900"></div>
+    <p id="mb-error" class="alert alert-error" role="alert" hidden></p>
+    <div class="btn-row">${row ? '<button type="button" class="btn btn-danger" data-remove>Remove</button>' : ''}
+      <button type="button" class="btn btn-quiet" data-cancel>Back</button><button type="button" class="btn btn-primary" data-save>Save</button></div>`,
+  { focus: '#mb-amount' });
+  body.querySelector('[data-cancel]').addEventListener('click', () => openBudgets(month));
+  body.querySelector('[data-save]').addEventListener('click', async (event) => {
+    const errorBox = body.querySelector('#mb-error');
+    clearError(errorBox);
+    const cents = parseAmountToCents(body.querySelector('#mb-amount').value);
+    if (cents === null) { showError(errorBox, 'Write the budget in euros, like 900.'); return; }
+    setBusy(event.currentTarget, true);
+    try {
+      const saved = await db.saveMonthlyBudget({ id: row ? row.id : null, yearMonth, amountCents: cents });
+      setState({ monthlyBudgets: row ? state.monthlyBudgets.map((b) => (b.id === saved.id ? saved : b)) : [...state.monthlyBudgets, saved] });
+      toast('Budget saved');
+      openBudgets(month);
+    } catch (err) { showError(errorBox, err.message); setBusy(event.currentTarget, false); }
+  });
+  const remove = body.querySelector('[data-remove]');
+  if (remove) remove.addEventListener('click', async () => {
+    try {
+      await db.deleteMonthlyBudget(row.id);
+      setState({ monthlyBudgets: state.monthlyBudgets.filter((b) => b.id !== row.id) });
+      toast(yearMonth ? `${monthName(yearMonth)} follows every month's budget again` : 'Removed');
+    } catch (err) { toast(err.message, 'error'); }
+    openBudgets(month);
+  });
 }
 
 /* ---------- Income: paydays (known income on a day each month) and income that came ---------- */

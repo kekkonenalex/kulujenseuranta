@@ -63,15 +63,16 @@ function renderAll() {
 /* ---------- Data ---------- */
 
 async function loadData() {
-  const [categories, transactions, budgets, deviceTokens, income, paydays, notes] = await Promise.all([
+  const [categories, transactions, budgets, deviceTokens, income, paydays, notes, monthlyBudgets] = await Promise.all([
     db.fetchCategories(), db.fetchTransactions(), db.fetchBudgets(), db.fetchDeviceTokens(),
-    db.fetchIncome(), db.fetchPaydays(), db.fetchNotes(),
+    db.fetchIncome(), db.fetchPaydays(), db.fetchNotes(), db.fetchMonthlyBudgets(),
   ]);
   lastLoadedAt = Date.now();
   setState({
     categories, transactions, budgets, deviceTokens, loaded: true,
     income: income || [], paydays: paydays || [], notes: notes || [],
     hasBuild1: income !== null && notes !== null,
+    monthlyBudgets: monthlyBudgets || [], hasMonthly: monthlyBudgets !== null,
   });
   ready();
 }
@@ -125,9 +126,10 @@ async function handleSignIn(event) {
 /* ---------- Wiring ---------- */
 
 function wire() {
-  qs('#boot-mark').innerHTML = mark(96);
+  qs('#boot-mark').innerHTML = mark(112, { full: true });
   qs('#auth-mark').innerHTML = mark(52);
   qs('#topbar-mark').innerHTML = mark(28);
+  qs('#rail-mark').innerHTML = mark(30);
   qs('#btn-settings').innerHTML = icon('settings');
   qs('[data-month-prev]').innerHTML = icon('prev');
   qs('[data-month-next]').innerHTML = icon('next');
@@ -146,6 +148,7 @@ function wire() {
     if (next <= lastMonth()) setState({ month: next });
   });
   qs('#fab').addEventListener('click', () => openLog());
+  qs('#rail-log').addEventListener('click', () => openLog());
   qs('#btn-settings').addEventListener('click', () => openSettings());
 
   window.addEventListener('online', () => setState({ online: true }));

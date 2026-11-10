@@ -70,10 +70,11 @@ code { font-size: .9em; color: var(--soft); }
 /* The loading screen: the bear 96 px wide, its centre 44% down, the name under it, as the launch image has them.
    It breathes, slowly, and goes once there's something to look at (app.js: html.ready). */
 .boot { position: fixed; inset: 0; z-index: 70; background: #000; transition: opacity .28s ease, visibility 0s linear .28s; }
-.boot-mark { position: absolute; left: 50%; top: 44%; width: 96px; height: 96px; transform: translate(-50%, -50%); }
-.boot-mark svg { display: block; width: 96px; height: 96px; animation: boot-breathe 2.4s ease-in-out infinite; }
-.boot-name { position: absolute; left: 50%; top: calc(44% + 48px + 22px); margin: 0; transform: translateX(-50%);
-  padding-left: .32em; font: 600 15px/1 var(--display); letter-spacing: .32em; text-transform: uppercase; color: #f3efe7; }
+.boot-mark { position: absolute; left: 50%; top: 44%; width: 112px; height: 112px; transform: translate(-50%, -50%); }
+.boot-mark svg { display: block; width: 112px; height: 112px; animation: boot-breathe 2.4s ease-in-out infinite; }
+.boot-name { position: absolute; left: 50%; top: calc(44% + 56px + 24px); margin: 0; transform: translateX(-50%); white-space: nowrap;
+  padding-left: .3em; font: 600 15px/1 var(--display); letter-spacing: .3em; text-transform: uppercase; color: #f3efe7; }
+.boot-accent { color: var(--amber); }
 @keyframes boot-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .62; } }
 @media (prefers-reduced-motion: reduce) { .boot-mark svg { animation: none; } }
 .ready .boot { opacity: 0; visibility: hidden; }
@@ -136,7 +137,7 @@ input[type="checkbox"] { width: 22px; min-height: 22px; height: 22px; accent-col
   position: sticky; top: 0; z-index: 5; padding: calc(env(safe-area-inset-top, 0px) + 14px) var(--gutter-r) 6px var(--gutter);
   background: var(--bg);
 }
-.topbar::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 14px; background: linear-gradient(to bottom, var(--bg), rgba(0,0,0,0)); pointer-events: none; }
+
 .topbar-row, .month-nav { max-width: 640px; margin: 0 auto; display: flex; align-items: center; gap: 8px; }
 .topbar-mark { display: inline-flex; }
 .topbar-title { font: 800 24px/1 var(--display); letter-spacing: -.015em; margin: 0; flex: 1; }
@@ -144,7 +145,7 @@ input[type="checkbox"] { width: 22px; min-height: 22px; height: 22px; accent-col
 .month-nav { justify-content: space-between; margin-top: 2px; }
 .month-label { font: 700 15px var(--display); color: var(--soft); }
 main { position: relative; z-index: 1; max-width: 640px; margin: 0 auto;
-  padding: 4px var(--gutter-r) calc(var(--nav-h) + var(--safe-bottom) + 96px) var(--gutter); }
+  padding: 14px var(--gutter-r) calc(var(--nav-h) + var(--safe-bottom) + 96px) var(--gutter); }
 .panel { display: grid; gap: 22px; }
 
 .tabbar {
@@ -297,6 +298,45 @@ body.has-sheet { overflow: hidden; }
   .sheet-panel { animation: none; }
   * { scroll-behavior: auto !important; }
 }
+/* the two columns stack on a phone */
+.col { display: grid; gap: 22px; align-content: start; min-width: 0; }
+.rail-brand, .rail-log { display: none; }
+.sheet-month { margin: 2px 0 4px; }
+
 @media (min-width: 700px) {
   .topbar-title { font-size: 28px; }
+}
+
+/* ---------- A laptop: the tabs become a rail on the left, the month gets two columns, sheets are dialogs ---------- */
+@media (min-width: 1000px) {
+  :root { --rail: 232px; }
+  .tabbar {
+    top: 0; bottom: 0; right: auto; width: var(--rail); height: auto; grid-template-columns: none; grid-auto-rows: min-content;
+    align-content: start; gap: 4px; padding: 26px 16px; border-top: 0; border-right: 1px solid var(--line);
+  }
+  .rail-brand { display: flex; align-items: center; gap: 10px; padding: 0 10px 26px; font: 700 17px var(--display); color: var(--text); }
+  .rail-brand b { color: var(--amber); font-weight: 700; }
+  .tab { grid-auto-flow: column; justify-content: start; justify-items: start; gap: 12px; padding: 11px 12px; border-radius: 10px; font-size: 15px; }
+  .tab:hover { background: var(--raised); color: var(--text); }
+  .tab[aria-current="page"] { background: var(--raised); }
+  .tab[aria-current="page"]::before { top: 10px; bottom: 10px; left: 0; right: auto; width: 2px; height: auto; }
+  .rail-log { display: block; margin-top: 18px; min-height: 46px; border: 0; border-radius: 10px; background: var(--amber); color: var(--on-amber);
+    font: 700 15px var(--display); cursor: pointer; }
+  .fab { display: none; }
+  #view-app { padding-left: var(--rail); }
+  .topbar { padding-left: 40px; padding-right: 40px; }
+  .topbar-row, .month-nav { max-width: 1080px; }
+  .topbar-mark { display: none; }
+  .topbar-row { flex-wrap: wrap; }
+  main { max-width: 1080px; padding: 18px 40px 64px; }
+  #panel-month:not([hidden]), #panel-otso:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 48px; align-items: start; }
+  #panel-expenses { max-width: 760px; }
+  .hero-amount { font-size: 64px; }
+  .dayrays { height: 110px; }
+  .rays-top { left: var(--rail); }
+  .toast { bottom: 28px; left: calc(50% + var(--rail) / 2); }
+  .sheet { align-items: center; padding: 32px; }
+  .sheet-panel { max-width: 560px; max-height: 86vh; border-radius: 16px; border-bottom: 1px solid var(--line); padding-bottom: 24px; }
+  .sheet-panel::before { display: none; }
+  .row:hover, .tx:hover, .menu-item:hover { background: rgba(245, 181, 68, .04); }
 }

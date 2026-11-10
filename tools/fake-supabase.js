@@ -41,6 +41,7 @@
     transactions: txs,
     budgets: [['c0', 30000], ['c1', 12000], ['c2', 6000], ['c3', 6400], ['c4', 2000]].map(([c, cents], i) => ({ id: `b${i}`, category_id: c, year_month: null, amount_cents: cents })),
     device_tokens: tokens,
+    monthly_budgets: [{ id: 'mb1', year_month: null, amount_cents: 90000 }],
     income: [{ id: 'i1', amount_cents: 26800, received_on: `${month}-05`, source: 'Part-time work', note: null, payday_id: null, created_at: `${month}-05T10:00:00Z` }],
     paydays: [{ id: 'p1', name: 'Study grant', amount_cents: 27983, day_of_month: 5, starts_on: '2026-09-01', ends_on: null, created_at: '2026-09-01T10:00:00Z' },
       { id: 'p2', name: 'Salary', amount_cents: 61000, day_of_month: 15, starts_on: '2026-09-01', ends_on: null, created_at: '2026-09-01T10:00:00Z' }],

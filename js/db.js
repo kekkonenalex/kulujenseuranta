@@ -235,6 +235,30 @@ export async function deleteBudget(id) {
 }
 
 /* ------------------------------------------------------------
+   The monthly budget for everything (build1b.sql): year_month null for every month, 'YYYY-MM' for one.
+   null when the database doesn't have it yet.
+   ------------------------------------------------------------ */
+
+const MONTHLY_COLUMNS = 'id, year_month, amount_cents';
+
+export async function fetchMonthlyBudgets() {
+  return optional(getClient().from('monthly_budgets').select(MONTHLY_COLUMNS));
+}
+
+export async function saveMonthlyBudget({ id = null, yearMonth = null, amountCents }) {
+  if (id) {
+    return run(getClient().from('monthly_budgets').update({ amount_cents: amountCents }).eq('id', id)
+      .select(MONTHLY_COLUMNS).single());
+  }
+  return run(getClient().from('monthly_budgets').insert({ user_id: await requireUserId(), year_month: yearMonth, amount_cents: amountCents })
+    .select(MONTHLY_COLUMNS).single());
+}
+
+export async function deleteMonthlyBudget(id) {
+  await run(getClient().from('monthly_budgets').delete().eq('id', id));
+}
+
+/* ------------------------------------------------------------
    Income and paydays (build1.sql). null when the database doesn't have them yet.
    ------------------------------------------------------------ */
 

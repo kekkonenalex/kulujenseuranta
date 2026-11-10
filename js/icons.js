@@ -31,12 +31,12 @@ export function icon(name, { label = '', size = 22 } = {}) {
 /** The Kulta bear, in rays (the app's mark). */
 let marks = 0;
 
-export function mark(size = 28) {
+export function mark(size = 28, { full = false } = {}) {
   const id = `m${marks += 1}`; // (ids of their own: a mark inside a hidden screen would break the others' clip)
   const rays = Array.from({ length: 16 }, (_, i) => `<rect x="${10 + i * 5}" width="2.4" height="100"/>`).join('');
   return `<svg class="mark" width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true">
     <defs><clipPath id="${id}-bear"><circle cx="24" cy="26" r="13"/><circle cx="76" cy="26" r="13"/>
       <path d="M50 22c22 0 36 14 36 33 0 13-6 22-15 27l-7 4c-4 3-9 4-14 4s-10-1-14-4l-7-4C20 77 14 68 14 55c0-19 14-33 36-33z"/></clipPath>
-      <linearGradient id="${id}-ray" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F7C25A"/><stop offset="1" stop-color="#D9772F" stop-opacity=".6"/></linearGradient></defs>
+      <linearGradient id="${id}-ray" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F7C25A"/><stop offset="1" stop-color="#D9772F" stop-opacity="${full ? '.85' : '.6'}"/></linearGradient></defs>
     <g clip-path="url(#${id}-bear)" fill="url(#${id}-ray)">${rays}</g><path d="M43 62h14l-7 8z" fill="#000"/></svg>`;
 }

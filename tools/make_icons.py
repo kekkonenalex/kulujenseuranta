@@ -139,20 +139,24 @@ FONT = Path(__file__).resolve().parents[1] / "fonts" / "schibsted-grotesk-600-la
 
 
 def launch(width: int, height: int, scale: int = 3) -> Image.Image:
+    """The loading screen as a picture: the bear 112 px wide, its centre 44% down, and "OTSO - EXPENSES" under it
+    (EXPENSES in amber), as styles.css places them."""
     from PIL import ImageFont
 
     w, h = width * scale, height * scale
     image = Image.new("RGB", (w, h), (0, 0, 0))
-    bear = draw(96 * scale, rounded=False, inset=100, shift=0)
+    bear = draw(112 * scale, rounded=False, inset=100, shift=0)
     image.paste(bear, (round(w / 2 - bear.width / 2), round(h * 0.44 - bear.height / 2)), bear)
     font = ImageFont.truetype(str(FONT), 15 * scale)
-    text, spacing = "EXPENSES", 0.32 * 15 * scale
-    widths = [font.getlength(ch) for ch in text]
-    total = sum(widths) + spacing * (len(text) - 1)
-    x, y = w / 2 - total / 2, h * 0.44 + (48 + 22) * scale
+    spacing = 0.3 * 15 * scale
+    parts = [("OTSO", (243, 239, 231)), (" - ", (243, 239, 231)), ("EXPENSES", (245, 181, 68))]
+    chars = [(ch, colour) for text, colour in parts for ch in text]
+    widths = [font.getlength(ch) for ch, _ in chars]
+    total = sum(widths) + spacing * (len(chars) - 1)
+    x, y = w / 2 - total / 2, h * 0.44 + (56 + 24) * scale
     pen = ImageDraw.Draw(image)
-    for ch, cw in zip(text, widths):
-        pen.text((x, y), ch, font=font, fill=(243, 239, 231))
+    for (ch, colour), cw in zip(chars, widths):
+        pen.text((x, y), ch, font=font, fill=colour)
         x += cw + spacing
     return image
 

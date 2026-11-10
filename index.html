@@ -32,7 +32,7 @@
        iPhone's launch image (icons/launch-*.png) has them, so opening the app has no flash or jump. -->
   <div id="boot" class="boot" aria-hidden="true">
     <div class="boot-mark" id="boot-mark"></div>
-    <p class="boot-name">Expenses</p>
+    <p class="boot-name"><span>Otso</span> - <span class="boot-accent">Expenses</span></p>
   </div>
 
   <!-- iOS 26 blurs the top edge of a home-screen app unless a fixed, full-width, solid box covers it; then it uses
@@ -90,9 +90,11 @@
     <button type="button" id="fab" class="fab" aria-label="Log an expense"></button>
 
     <nav class="tabbar" id="tabbar" aria-label="Views">
+      <div class="rail-brand" aria-hidden="true"><span id="rail-mark"></span><span>Otso <b>Expenses</b></span></div>
       <button type="button" class="tab" data-view="month"><span class="tab-icon" data-icon="month"></span><span>Month</span></button>
       <button type="button" class="tab" data-view="expenses"><span class="tab-icon" data-icon="list"></span><span>Expenses</span></button>
       <button type="button" class="tab" data-view="otso"><span class="tab-icon" data-icon="bear"></span><span>Otso</span></button>
+      <button type="button" class="rail-log" id="rail-log">Log an expense</button>
     </nav>
   </div>
 
