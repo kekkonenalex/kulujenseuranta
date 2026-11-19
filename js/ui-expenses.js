@@ -13,7 +13,7 @@ import {
   formatMoney, dayHeading, monthName, parseAmountToCents, formatAmount, isValidISODate, todayISO, formatDay, monthOf,
 } from './format.js';
 import {
-  escapeHtml, safeColor, openSheet, closeSheet, toast, setBusy, showError, clearError, confirmSheet,
+  escapeHtml, openSheet, closeSheet, toast, setBusy, showError, clearError, confirmSheet, categorySelect,
 } from './ui-common.js';
 import { icon } from './icons.js';
 
@@ -81,7 +81,6 @@ export function txRow(tx, isFlagged = false) {
   const source = sourceOf(tx);
   return `
     <button type="button" class="tx" data-tx="${escapeHtml(tx.id)}">
-      <span class="dot" style="background:${safeColor(cat && cat.color)}"></span>
       <span class="tx-main"><span class="tx-cat">${escapeHtml(cat ? cat.name : 'Deleted category')}</span>
         ${tx.description ? `<span class="tx-desc">${escapeHtml(tx.description)}</span>` : ''}</span>
       <span><span class="tx-amount">${escapeHtml(formatMoney(tx.amount_cents))}</span>
@@ -107,10 +106,7 @@ export function openExpense(txId) {
     <p class="muted small">${escapeHtml(from)}, ${escapeHtml(formatDay(tx.created_at.slice(0, 10)))}.</p>
     <div class="field"><label for="tx-amount">Amount, €</label>
       <input id="tx-amount" inputmode="decimal" autocomplete="off" value="${escapeHtml(formatAmount(tx.amount_cents))}"></div>
-    <div class="field"><span class="label" id="tx-cat-label">Category</span>
-      <div class="pick-list" role="group" aria-labelledby="tx-cat-label">${cats.map((c) => `
-        <button type="button" class="pick" data-cat="${escapeHtml(c.id)}" aria-pressed="${c.id === tx.category_id}">
-          <span class="dot" style="background:${safeColor(c.color)}"></span><span>${escapeHtml(c.name)}</span></button>`).join('')}</div></div>
+    <div class="field"><label for="tx-cat">Category</label>${categorySelect('tx-cat', cats, current ? tx.category_id : null)}</div>
     <div class="field"><label for="tx-date">Day</label><input type="date" id="tx-date" value="${escapeHtml(tx.occurred_on)}"></div>
     <div class="field"><label for="tx-note">Note</label><input id="tx-note" maxlength="300" value="${escapeHtml(tx.description || '')}"></div>
     <p id="tx-error" class="alert alert-error" role="alert" hidden></p>
@@ -120,17 +116,14 @@ export function openExpense(txId) {
       <button type="button" class="btn btn-primary" data-save>Save</button>
     </div>`);
 
-  let categoryId = tx.category_id;
-  body.querySelectorAll('[data-cat]').forEach((chip) => chip.addEventListener('click', () => {
-    categoryId = chip.dataset.cat;
-    body.querySelectorAll('[data-cat]').forEach((c) => c.setAttribute('aria-pressed', String(c === chip)));
-  }));
   body.querySelector('[data-save]').addEventListener('click', async (event) => {
     const errorBox = body.querySelector('#tx-error');
     clearError(errorBox);
     const cents = parseAmountToCents(body.querySelector('#tx-amount').value);
     const day = body.querySelector('#tx-date').value;
+    const categoryId = body.querySelector('#tx-cat').value;
     if (cents === null) { showError(errorBox, 'Write the amount in euros, like 12,40.'); return; }
+    if (!categoryId) { showError(errorBox, 'Choose the category.'); return; }
     if (!isValidISODate(day)) { showError(errorBox, 'Pick the day.'); return; }
     setBusy(event.currentTarget, true);
     try {

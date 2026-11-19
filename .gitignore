@@ -7,3 +7,6 @@ Thumbs.db
 # Se sisaltaa vain julkisen anon-avaimen, jonka RLS suojaa.
 # Jos haluat pitaa senkin pois repositoriosta, lisaa se tahan
 # ja kirjoita arvot vasta julkaisun jalkeen.
+
+# Windows folder settings (OneDrive)
+desktop.ini

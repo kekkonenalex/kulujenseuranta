@@ -18,9 +18,14 @@ export function escapeHtml(value) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-/** A safe colour for a style attribute: #rrggbb or a neutral. */
-export function safeColor(value) {
-  return /^#[0-9a-f]{6}$/i.test(String(value || '')) ? value : '#6b6560';
+/**
+ * Choosing a category (log and edit sheets): a native select, the phone's own picker. It starts on a
+ * placeholder that can't be picked back, or on `selected`; an archived category says so.
+ */
+export function categorySelect(id, cats, selected = null) {
+  const options = cats.map((c) => `<option value="${escapeHtml(c.id)}"${c.id === selected ? ' selected' : ''}>${escapeHtml(c.name)}${c.archived ? ' (archived)' : ''}</option>`).join('');
+  return `<select id="${escapeHtml(id)}" required>
+    <option value="" disabled${selected ? '' : ' selected'}>Choose a category</option>${options}</select>`;
 }
 
 export function showError(element, message) {

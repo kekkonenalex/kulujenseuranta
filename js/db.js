@@ -129,32 +129,66 @@ async function requireUserId() {
    Categories
    ------------------------------------------------------------ */
 
+// (color stays in the table and in backups; the app no longer shows or writes it)
 const CATEGORY_COLUMNS = 'id, name, color, sort_order, archived, ask_description, created_at';
+let categoryColumns = `${CATEGORY_COLUMNS}, fixed`;
 
-export async function fetchCategories() {
-  return (await run(getClient().from('categories').select(CATEGORY_COLUMNS)
-    .order('sort_order', { ascending: true }).order('created_at', { ascending: true }))) || [];
+/** Before sql/build2.sql there's no `fixed` column: meanwhile a category named Vuokra counts as fixed. */
+const FIXED_BY_NAME = /^vuokra$/i;
+
+export function hasFixedColumn() {
+  return categoryColumns !== CATEGORY_COLUMNS;
 }
 
-export async function createCategory({ name, color, sortOrder, askDescription = false }) {
+function missingFixedColumn(error) {
+  const text = `${(error && error.code) || ''} ${(error && error.message) || ''}`;
+  return /42703|PGRST204/.test(text) || (/\bfixed\b/.test(text) && /does not exist|schema cache|could not find/i.test(text));
+}
+
+function withFixed(rows) {
+  if (hasFixedColumn()) return rows.map((c) => ({ ...c, fixed: c.fixed === true }));
+  return rows.map((c) => ({ ...c, fixed: FIXED_BY_NAME.test(String(c.name || '').trim()) }));
+}
+
+export async function fetchCategories() {
+  const query = () => getClient().from('categories').select(categoryColumns)
+    .order('sort_order', { ascending: true }).order('created_at', { ascending: true });
+  if (hasFixedColumn()) {
+    let result;
+    try { result = await query(); } catch (err) { throw toAppError(err); }
+    if (result && result.error && missingFixedColumn(result.error)) {
+      categoryColumns = CATEGORY_COLUMNS; // (the database hasn't had build2.sql yet: carry on without it)
+    } else {
+      if (result && result.error) throw toAppError(result.error);
+      return withFixed((result && result.data) || []);
+    }
+  }
+  return withFixed((await run(query())) || []);
+}
+
+export async function createCategory({ name, sortOrder, askDescription = false, fixed = false, color = null }) {
   const userId = await requireUserId();
-  return run(getClient().from('categories').insert({
+  const row = {
     user_id: userId,
     name: String(name).trim(),
-    color: color || '#f5b544',
     sort_order: Number.isFinite(sortOrder) ? sortOrder : 0,
     ask_description: Boolean(askDescription),
-  }).select(CATEGORY_COLUMNS).single());
+  };
+  if (color) row.color = color; // (only a restored backup brings one)
+  if (hasFixedColumn()) row.fixed = Boolean(fixed);
+  const [created] = withFixed([await run(getClient().from('categories').insert(row).select(categoryColumns).single())]);
+  return created;
 }
 
 export async function updateCategory(id, patch) {
   const allowed = {};
   if (patch.name !== undefined) allowed.name = String(patch.name).trim();
-  if (patch.color !== undefined) allowed.color = patch.color;
   if (patch.archived !== undefined) allowed.archived = Boolean(patch.archived);
   if (patch.sortOrder !== undefined) allowed.sort_order = patch.sortOrder;
   if (patch.askDescription !== undefined) allowed.ask_description = Boolean(patch.askDescription);
-  return run(getClient().from('categories').update(allowed).eq('id', id).select(CATEGORY_COLUMNS).single());
+  if (patch.fixed !== undefined && hasFixedColumn()) allowed.fixed = Boolean(patch.fixed);
+  const [updated] = withFixed([await run(getClient().from('categories').update(allowed).eq('id', id).select(categoryColumns).single())]);
+  return updated;
 }
 
 export async function deleteCategory(id) {
@@ -379,8 +413,9 @@ export async function importBackup({ categories = [], transactions = [], budgets
     if (!key) continue;
     if (byName.has(key)) { idMap.set(cat.id, byName.get(key).id); continue; }
     const created = await createCategory({
-      name: cat.name, color: /^#[0-9a-f]{6}$/i.test(cat.color || '') ? cat.color : '#f5b544',
+      name: cat.name, color: /^#[0-9a-f]{6}$/i.test(cat.color || '') ? cat.color : null,
       sortOrder: Number.isFinite(cat.sort_order) ? cat.sort_order : 0, askDescription: cat.ask_description === true,
+      fixed: cat.fixed === true,
     });
     byName.set(key, created);
     idMap.set(cat.id, created.id);

@@ -73,6 +73,7 @@ async function loadData() {
     income: income || [], paydays: paydays || [], notes: notes || [],
     hasBuild1: income !== null && notes !== null,
     monthlyBudgets: monthlyBudgets || [], hasMonthly: monthlyBudgets !== null,
+    hasFixed: db.hasFixedColumn(),
   });
   ready();
 }

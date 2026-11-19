@@ -14,7 +14,7 @@ import {
   monthLabel, addMonths,
 } from './format.js';
 import {
-  qs, escapeHtml, safeColor, openSheet, closeSheet, toast, setBusy, showError, clearError, confirmSheet,
+  qs, escapeHtml, openSheet, closeSheet, toast, setBusy, showError, clearError, confirmSheet,
 } from './ui-common.js';
 import { icon } from './icons.js';
 import { openBudget } from './ui-month.js';
@@ -22,10 +22,9 @@ import { exportExcel, exportBackup, importBackupFile } from './export.js';
 import { signOut, reloadData } from './app.js';
 
 const SHORTCUT_HELP = 'https://github.com/kekkonenalex/kulujenseuranta/blob/main/PIKAKOMENTO.md';
-const PALETTE = ['#f5b544', '#d9772f', '#e8d5a8', '#8fa3ad', '#b4532a', '#c9a227', '#7d8f6a', '#a77b5c', '#d0bfa0', '#5f7480'];
 
 const SECTIONS = [
-  ['categories', 'Categories', 'Names, colours, order', openCategories],
+  ['categories', 'Categories', 'Names, order, fixed costs', openCategories],
   ['budgets', 'Budgets', 'The month, and each category', () => openBudgets(state.month)],
   ['income', 'Income', 'Paydays, and income that came', openIncome],
   ['connections', 'Connections', 'The iPhone Shortcut and Otso', openConnections],
@@ -57,15 +56,13 @@ function openCategories() {
     <div id="cat-list">${cats.map((c) => `
       <div class="cat-row" data-cat-id="${escapeHtml(c.id)}">
         <span class="drag-handle" data-drag-handle aria-hidden="true">${icon('drag', { size: 18 })}</span>
-        <span class="dot" style="background:${safeColor(c.color)}"></span>
-        <span class="row-name">${escapeHtml(c.name)}${c.archived ? ' <span class="muted small">(archived)</span>' : ''}${c.ask_description ? ' <span class="muted small">(Shortcut asks a note)</span>' : ''}</span>
+        <span class="row-name">${escapeHtml(c.name)}${c.fixed ? ' <span class="muted small">(fixed)</span>' : ''}${c.archived ? ' <span class="muted small">(archived)</span>' : ''}${c.ask_description ? ' <span class="muted small">(Shortcut asks a note)</span>' : ''}</span>
         <button type="button" class="icon-btn" data-up="${escapeHtml(c.id)}" aria-label="Move ${escapeHtml(c.name)} up">${icon('up', { size: 18 })}</button>
         <button type="button" class="icon-btn" data-edit="${escapeHtml(c.id)}" aria-label="Edit ${escapeHtml(c.name)}">${icon('edit', { size: 18 })}</button>
       </div>`).join('') || '<p class="empty">No categories yet.</p>'}</div>
     <form id="cat-form" class="field" novalidate>
       <label for="cat-name">New category</label>
       <div style="display:flex;gap:8px"><input id="cat-name" maxlength="60" placeholder="Groceries" autocomplete="off">
-        <input type="color" id="cat-color" value="${PALETTE[cats.length % PALETTE.length]}" aria-label="Colour" style="width:56px;flex:none">
         <button type="submit" class="btn btn-primary">Add</button></div>
       <p id="cat-error" class="alert alert-error" role="alert" hidden></p>
     </form>`));
@@ -78,7 +75,7 @@ function openCategories() {
     if (!name) { showError(errorBox, 'Give the category a name.'); return; }
     if (state.categories.some((c) => c.name.trim().toLowerCase() === name.toLowerCase())) { showError(errorBox, 'There is a category with that name already.'); return; }
     try {
-      const created = await db.createCategory({ name, color: body.querySelector('#cat-color').value, sortOrder: nextSortOrder() });
+      const created = await db.createCategory({ name, sortOrder: nextSortOrder() });
       setState({ categories: [...state.categories, created] });
       toast('Category added');
       openCategories();
@@ -100,7 +97,9 @@ function editCategory(id) {
   const body = openSheet(`Edit ${cat.name}`, `
     <div class="field"><label for="edit-name">Name</label><input id="edit-name" maxlength="60" value="${escapeHtml(cat.name)}"></div>
     <p class="hint">A per-category Shortcut uses the name: renaming one means changing that Shortcut too.</p>
-    <div class="field"><label for="edit-color">Colour</label><input type="color" id="edit-color" value="${safeColor(cat.color)}"></div>
+    ${state.hasFixed
+    ? `<label class="check"><input type="checkbox" id="edit-fixed" ${cat.fixed ? 'checked' : ''}> Fixed monthly cost: counted from the 1st, outside the day-to-day pace</label>`
+    : '<p class="hint">Fixed monthly costs need <code>sql/build2.sql</code> pasted in Supabase. Until then, Vuokra counts as fixed.</p>'}
     <label class="check"><input type="checkbox" id="edit-archived" ${cat.archived ? 'checked' : ''}> Archived: not on the log sheet, history kept</label>
     <label class="check"><input type="checkbox" id="edit-ask" ${cat.ask_description ? 'checked' : ''}> The Shortcut asks for a note in this category</label>
     <p id="edit-error" class="alert alert-error" role="alert" hidden></p>
@@ -114,9 +113,10 @@ function editCategory(id) {
     if (state.categories.some((c) => c.id !== cat.id && c.name.trim().toLowerCase() === name.toLowerCase())) { showError(errorBox, 'There is a category with that name already.'); return; }
     setBusy(event.currentTarget, true);
     try {
+      const fixedBox = body.querySelector('#edit-fixed');
       const updated = await db.updateCategory(cat.id, {
-        name, color: body.querySelector('#edit-color').value,
-        archived: body.querySelector('#edit-archived').checked, askDescription: body.querySelector('#edit-ask').checked,
+        name, archived: body.querySelector('#edit-archived').checked, askDescription: body.querySelector('#edit-ask').checked,
+        fixed: fixedBox ? fixedBox.checked : undefined,
       });
       setState({ categories: state.categories.map((c) => (c.id === cat.id ? updated : c)) });
       toast('Saved');
@@ -240,11 +240,11 @@ function openBudgets(month = budgetMonth || state.month) {
   }
   const whole = state.hasMonthly ? `
     <div class="rows">
-      <button type="button" class="row" data-monthly="every"><span class="dot" style="background:var(--amber)"></span>
+      <button type="button" class="row" data-monthly="every">
         <span class="row-name">Every month</span>
         <span class="row-amount">${every ? escapeHtml(formatMoney(every.amount_cents)) : '<small>not set</small>'}</span>
         <span class="row-sub">${every ? 'the budget for everything you spend in a month' : 'set one budget for everything, every month'}</span></button>
-      <button type="button" class="row" data-monthly="month"><span class="dot" style="background:${own ? 'var(--amber)' : 'var(--line)'}"></span>
+      <button type="button" class="row" data-monthly="month">
         <span class="row-name">${escapeHtml(name)} only</span>
         <span class="row-amount">${own ? escapeHtml(formatMoney(own.amount_cents)) : '<small>as every month</small>'}</span>
         <span class="row-sub">${own ? `${escapeHtml(name)}'s own budget, instead of every month's` : `a different budget for ${escapeHtml(name)}`}</span></button>
@@ -261,8 +261,8 @@ function openBudgets(month = budgetMonth || state.month) {
     <h3 class="section-title">Categories, ${escapeHtml(name)}</h3>
     <div class="rows">${cats.map((c) => {
       const { row, kind } = budgetRowFor(c.id, month);
-      const sub = kind === 'month' ? `${escapeHtml(name)} only` : kind === 'default' ? 'every month' : 'no budget';
-      return `<button type="button" class="row" data-budget="${escapeHtml(c.id)}"><span class="dot" style="background:${safeColor(c.color)}"></span>
+      const sub = (kind === 'month' ? `${escapeHtml(name)} only` : kind === 'default' ? 'every month' : 'no budget') + (c.fixed ? ' · fixed' : '');
+      return `<button type="button" class="row" data-budget="${escapeHtml(c.id)}">
         <span class="row-name">${escapeHtml(c.name)}</span>
         <span class="row-amount">${row ? escapeHtml(formatMoney(row.amount_cents)) : '<small>none</small>'}</span>
         <span class="row-sub">${sub}</span></button>`;
@@ -327,13 +327,12 @@ export function openIncome() {
     <div class="section-head"><h3 class="section-title">Paydays</h3><button type="button" class="link-btn" data-new-payday>Add a payday</button></div>
     <p class="hint">Income that comes on a day each month: a study grant, a salary. It's counted on its day, without typing it in each month.</p>
     <div class="rows">${state.paydays.map((p) => `
-      <button type="button" class="row" data-payday="${escapeHtml(p.id)}"><span class="dot" style="background:var(--amber)"></span>
+      <button type="button" class="row" data-payday="${escapeHtml(p.id)}">
         <span class="row-name">${escapeHtml(p.name)}</span><span class="row-amount">${escapeHtml(formatMoney(p.amount_cents))}</span>
         <span class="row-sub">the ${ordinal(p.day_of_month)} of each month${p.ends_on ? `, until ${escapeHtml(formatDate(p.ends_on))}` : ''}</span></button>`).join('') || '<p class="empty">None yet.</p>'}</div>
     <div class="section-head"><h3 class="section-title">${escapeHtml(monthName(state.month))}</h3><button type="button" class="link-btn" data-new-income>Add income</button></div>
     <div class="rows">${month.rows.map((r) => `
       <button type="button" class="row" ${r.id ? `data-income="${escapeHtml(r.id)}"` : `data-payday-actual="${escapeHtml(r.paydayId)}"`}>
-        <span class="dot" style="background:${r.expected ? 'var(--line)' : 'var(--amber)'}"></span>
         <span class="row-name">${escapeHtml(r.source)}</span><span class="row-amount">${escapeHtml(formatMoney(r.cents))}</span>
         <span class="row-sub">${escapeHtml(formatDay(r.on))}${r.fromPayday ? (r.expected ? ' · expected' : ' · payday (tap if the amount differed)') : ''}</span></button>`).join('') || '<p class="empty">No income this month.</p>'}</div>`));
   wireBack(body);

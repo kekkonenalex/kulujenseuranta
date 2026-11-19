@@ -1,6 +1,11 @@
 // A fake Supabase client for tools/preview.html: the calls js/db.js makes, on example data in memory.
 // Example data only (not anyone's real spending). Today is whatever the computer says.
+//   ?nofixed     the database before sql/build2.sql: no categories.fixed column (asking for it is an error)
+//   ?rent=later  this month's rent isn't logged yet
 (function () {
+  const params = new URLSearchParams(location.search);
+  const noFixed = params.has('nofixed');
+  const rentLater = params.get('rent') === 'later';
   const pad = (n) => String(n).padStart(2, '0');
   const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const today = new Date();
@@ -10,8 +15,12 @@
 
   const cats = [
     ['Ruokakauppa', '#f5b544'], ['Ravintolat', '#d9772f'], ['Kahvi ja välipalat', '#e8d5a8'],
-    ['Julkinen liikenne', '#8fa3ad'], ['Energiajuomat', '#b4532a'], ['Viihde', '#7d8f6a'],
-  ].map(([name, color], i) => ({ id: `c${i}`, name, color, sort_order: (i + 1) * 10, archived: false, ask_description: i === 1, created_at: '2026-09-01T10:00:00Z' }));
+    ['Julkinen liikenne', '#8fa3ad'], ['Energiajuomat', '#b4532a'], ['Viihde', '#7d8f6a'], ['Vuokra', '#f5b544'],
+  ].map(([name, color], i) => {
+    const cat = { id: `c${i}`, name, color, sort_order: (i + 1) * 10, archived: false, ask_description: i === 1, created_at: '2026-09-01T10:00:00Z' };
+    if (!noFixed) cat.fixed = name === 'Vuokra';
+    return cat;
+  });
   const tokens = [
     { id: 't-iphone', name: 'iPhone', created_at: '2026-09-20T10:00:00Z', last_used_at: day(-1) + 'T08:00:00Z', can_read: false, can_note: false },
     { id: 't-otso', name: 'Otso', created_at: '2026-10-02T10:00:00Z', last_used_at: day(0) + 'T08:12:00Z', can_read: true, can_note: true },
@@ -24,6 +33,7 @@
     const on = day(-back);
     const add = (c, cents, desc, token = null) => txs.push({ id: uid(), category_id: `c${c}`, amount_cents: cents, occurred_on: on, description: desc, created_at: on + 'T12:00:00Z', updated_at: on + 'T12:00:00Z', device_token_id: token });
     if (back < 0) { if (back === -2) add(5, 2400, 'Concert ticket'); continue; }
+    if (on.endsWith('-01') && !(rentLater && on === day(0).slice(0, 8) + '01')) add(6, 87500, 'Rent'); // (the rent, on the 1st)
     if (back % 3 === 0) add(0, 1800 + Math.round(rand() * 3200), rand() > 0.5 ? 'Prisma Kamppi' : 'K-Market', rand() > 0.4 ? 't-otso' : null);
     if (rand() > 0.35) add(2, 250 + Math.round(rand() * 300), 'Unicafe', 't-otso');
     if (rand() > 0.7) add(1, 1100 + Math.round(rand() * 1600), rand() > 0.5 ? 'Wolt' : 'Lunch, Kamppi', 't-iphone');
@@ -39,9 +49,9 @@
   const tables = {
     categories: cats,
     transactions: txs,
-    budgets: [['c0', 30000], ['c1', 12000], ['c2', 6000], ['c3', 6400], ['c4', 2000]].map(([c, cents], i) => ({ id: `b${i}`, category_id: c, year_month: null, amount_cents: cents })),
+    budgets: [['c0', 30000], ['c1', 12000], ['c2', 6000], ['c3', 6400], ['c4', 2000], ['c6', 87500]].map(([c, cents], i) => ({ id: `b${i}`, category_id: c, year_month: null, amount_cents: cents })),
     device_tokens: tokens,
-    monthly_budgets: [{ id: 'mb1', year_month: null, amount_cents: 90000 }],
+    monthly_budgets: [{ id: 'mb1', year_month: null, amount_cents: 150000 }],
     income: [{ id: 'i1', amount_cents: 26800, received_on: `${month}-05`, source: 'Part-time work', note: null, payday_id: null, created_at: `${month}-05T10:00:00Z` }],
     paydays: [{ id: 'p1', name: 'Study grant', amount_cents: 27983, day_of_month: 5, starts_on: '2026-09-01', ends_on: null, created_at: '2026-09-01T10:00:00Z' },
       { id: 'p2', name: 'Salary', amount_cents: 61000, day_of_month: 15, starts_on: '2026-09-01', ends_on: null, created_at: '2026-09-01T10:00:00Z' }],
@@ -52,9 +62,9 @@
   };
 
   function builder(table) {
-    const q = { table, op: 'select', filters: [], payload: null, single: false, range: null, order: [] };
+    const q = { table, op: 'select', columns: '', filters: [], payload: null, single: false, range: null, order: [] };
     const api = {
-      select() { return api; },
+      select(columns) { q.columns = String(columns || ''); return api; },
       order(col, opts) { q.order.push([col, opts && opts.ascending === false ? -1 : 1]); return api; },
       range(a, b) { q.range = [a, b]; return api; },
       eq(col, val) { q.filters.push([col, val]); return api; },
@@ -68,6 +78,14 @@
   }
 
   function run(q) {
+    // Before build2.sql, as PostgREST answers: selecting the column is 42703, writing it is PGRST204.
+    if (noFixed && q.table === 'categories') {
+      if (/\bfixed\b/.test(q.columns)) return { data: null, error: { code: '42703', message: 'column categories.fixed does not exist' } };
+      const rows = Array.isArray(q.payload) ? q.payload : [q.payload];
+      if (q.payload && rows.some((r) => r && 'fixed' in r)) {
+        return { data: null, error: { code: 'PGRST204', message: "Could not find the 'fixed' column of 'categories' in the schema cache" } };
+      }
+    }
     const rows = tables[q.table];
     const match = (r) => q.filters.every(([c, v]) => r[c] === v);
     let data;

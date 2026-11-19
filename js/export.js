@@ -119,7 +119,7 @@ export async function exportExcel(button) {
 export function exportBackup() {
   const payload = {
     app: 'kulujenseuranta', format_version: 2, app_version: APP_VERSION, exported_at: new Date().toISOString(),
-    categories: state.categories.map((c) => ({ id: c.id, name: c.name, color: c.color, sort_order: c.sort_order, archived: c.archived, ask_description: c.ask_description === true })),
+    categories: state.categories.map((c) => ({ id: c.id, name: c.name, color: c.color, sort_order: c.sort_order, archived: c.archived, ask_description: c.ask_description === true, fixed: c.fixed === true })),
     transactions: state.transactions.map((t) => ({ id: t.id, category_id: t.category_id, amount_cents: t.amount_cents, occurred_on: t.occurred_on, description: t.description || null })),
     budgets: state.budgets.map((b) => ({ id: b.id, category_id: b.category_id, year_month: b.year_month || null, amount_cents: b.amount_cents })),
     // (kept in the file for the record; restoring brings back categories, expenses and budgets)

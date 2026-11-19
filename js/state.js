@@ -7,7 +7,7 @@ import { addMonths, currentMonth, daysInMonth, monthOf, todayISO, addDaysISO } f
 
 export const state = {
   user: null,
-  categories: [],     // { id, name, color, sort_order, archived, ask_description }
+  categories: [],     // { id, name, color, sort_order, archived, ask_description, fixed }
   transactions: [],   // { id, category_id, amount_cents, occurred_on, description, created_at, device_token_id }
   budgets: [],        // { id, category_id, year_month, amount_cents }
   deviceTokens: [],   // { id, name, created_at, last_used_at, can_read, can_note }
@@ -17,6 +17,7 @@ export const state = {
   monthlyBudgets: [], // the budget for everything: { id, year_month (null: every month), amount_cents }
   hasMonthly: true,   // false while the database hasn't had sql/build1b.sql
   hasBuild1: true,    // false while the database hasn't had sql/build1.sql
+  hasFixed: true,     // false while the database hasn't had sql/build2.sql (Vuokra counts as fixed meanwhile)
   month: currentMonth(),
   view: 'month',
   query: '',
@@ -144,22 +145,64 @@ export function monthlyBudgetFor(month = state.month) {
   return { row: null, kind: 'none' };
 }
 
+/* ---------- Fixed monthly costs (Alex, 19 Nov 2026: only the rent, its own category Vuokra) ----------
+   A fixed category counts as expected from the 1st: paying it changes nothing. Everything else is
+   day-to-day spending, and only that drives the pace, "usually", the day rays and the "odd" flags. */
+
+/** The ids of the fixed categories. */
+export function fixedIds() {
+  return new Set(state.categories.filter((c) => c.fixed).map((c) => c.id));
+}
+
+function spentIn(month, categoryId) {
+  return state.transactions.reduce((sum, tx) => (tx.category_id === categoryId && monthOf(tx.occurred_on) === month
+    ? sum + tx.amount_cents : sum), 0);
+}
+
+/**
+ * A fixed category's amount for a month: what's logged, or its budget (else last month's amount) when that's
+ * more. A past month (or an archived category) is what was logged: nothing more is coming.
+ */
+export function fixedExpectedFor(categoryId, month = state.month) {
+  const logged = spentIn(month, categoryId);
+  const cat = categoryById(categoryId);
+  if (!cat || cat.archived || month < currentMonth()) return logged;
+  const budget = budgetCentsFor(categoryId, month);
+  return Math.max(logged, budget !== null ? budget : spentIn(addMonths(month, -1), categoryId));
+}
+
+/** The month in two parts: { fixedExpected, fixedLogged, dayToDay } (day-to-day: everything not fixed). */
+export function splitFor(month = state.month) {
+  const ids = fixedIds();
+  let fixedLogged = 0;
+  let dayToDay = 0;
+  for (const tx of monthTransactions(month)) {
+    if (ids.has(tx.category_id)) fixedLogged += tx.amount_cents; else dayToDay += tx.amount_cents;
+  }
+  let fixedExpected = 0;
+  for (const id of ids) fixedExpected += fixedExpectedFor(id, month);
+  return { fixedExpected, fixedLogged, dayToDay };
+}
+
 /* ---------- History: what's usual by this day, and where the month is heading (N2, N8) ---------- */
 
 const HISTORY_MONTHS = 3;
 
 /**
- * Spent by the end of `day` in `month` (the day capped at that month's length), optionally one category.
- * Single expenses of 100 € or more are left out: they're one-offs (a flight booked, a hotel), and with them
- * "usual" swung by hundreds. The dry run of 10 Nov 2026 on real history: without them, October's forecast
- * was 1 210-1 245 € from the 3rd on, and the month ended at 1 277 €; with them, 1 904 € on the 3rd.
+ * Day-to-day spending by the end of `day` in `month` (the day capped at that month's length), optionally one
+ * category. Fixed categories are left out, and so are single expenses of 100 € or more: they're one-offs (a
+ * flight booked, a hotel), and with them "usual" swung by hundreds. The dry run of 10 Nov 2026 on real
+ * history: without them, October's forecast was 1 210-1 245 € from the 3rd on, and the month ended at
+ * 1 277 €; with them, 1 904 € on the 3rd.
  */
 const ONE_OFF = 10000;
 
 function spentByDay(month, day, categoryId = null) {
   const last = `${month}-${String(Math.min(day, daysInMonth(month))).padStart(2, '0')}`;
+  const fixed = categoryId ? new Set() : fixedIds();
   return state.transactions.reduce((sum, tx) => (monthOf(tx.occurred_on) === month && tx.occurred_on <= last
-    && tx.amount_cents < ONE_OFF && (!categoryId || tx.category_id === categoryId) ? sum + tx.amount_cents : sum), 0);
+    && tx.amount_cents < ONE_OFF && (categoryId ? tx.category_id === categoryId : !fixed.has(tx.category_id))
+    ? sum + tx.amount_cents : sum), 0);
 }
 
 /** The months before `month` that have any expenses, up to three. */
@@ -175,26 +218,32 @@ function pastMonths(month) {
 const mean = (values) => (values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0);
 
 /**
- * The month so far against the usual one: { day, days, spent, usualByNow, usualMonth, forecast, months }.
- * usualByNow: on average, spent by this day in the last three months. forecast: what's spent so far, plus
- * what the usual month still spends after this day, plus anything dated later this month. From day 1 (it
- * doesn't need a pace). null for a past month, or without any history.
+ * The month's day-to-day spending so far against the usual one, and where the month is heading:
+ * { day, days, spent, usualByNow, usualMonth, dayToDayForecast, fixedExpected, fixedLogged, forecast, months }.
+ * spent and usualByNow are day-to-day only (on average, spent by this day in the last three months).
+ * dayToDayForecast: spent so far, plus what the usual month still spends after this day, plus anything dated
+ * later this month. forecast: that plus the fixed costs expected. From day 1 (it doesn't need a pace).
+ * null for a past month, a fixed category, or without any history.
  */
 export function paceFor(month = state.month, categoryId = null) {
   if (month !== currentMonth()) return null;
+  const fixed = fixedIds();
+  if (categoryId && fixed.has(categoryId)) return null;
   const months = pastMonths(month);
   if (!months.length) return null;
   const today = todayISO();
   const day = Number(today.slice(8, 10));
   const days = daysInMonth(month);
-  const rows = monthTransactions(month).filter((tx) => !categoryId || tx.category_id === categoryId);
+  const rows = monthTransactions(month).filter((tx) => (categoryId ? tx.category_id === categoryId : !fixed.has(tx.category_id)));
   const spent = rows.filter((tx) => tx.occurred_on <= today).reduce((s, tx) => s + tx.amount_cents, 0);
   const later = rows.filter((tx) => tx.occurred_on > today).reduce((s, tx) => s + tx.amount_cents, 0);
   const usualByNow = mean(months.map((m) => spentByDay(m, day, categoryId)));
   const usualMonth = mean(months.map((m) => spentByDay(m, 31, categoryId)));
+  const dayToDayForecast = spent + Math.max(0, usualMonth - usualByNow) + later;
+  const { fixedExpected, fixedLogged } = categoryId ? { fixedExpected: 0, fixedLogged: 0 } : splitFor(month);
   return {
     day, days, spent, usualByNow, usualMonth, months: months.length,
-    forecast: spent + Math.max(0, usualMonth - usualByNow) + later,
+    dayToDayForecast, fixedExpected, fixedLogged, forecast: fixedExpected + dayToDayForecast,
   };
 }
 
@@ -211,38 +260,47 @@ export function monthSummary(month = state.month) {
   for (const category of allCategoriesSorted()) {
     const spentCents = spent.get(category.id) || 0;
     const { row, kind } = budgetRowFor(category.id, month);
+    const fixed = Boolean(category.fixed);
+    const expectedCents = fixed ? fixedExpectedFor(category.id, month) : null;
     if (category.archived && !spentCents) continue;
-    if (!spentCents && !row) continue;
+    if (!spentCents && !row && !expectedCents) continue;
     rows.push({
-      categoryId: category.id, name: category.name, color: category.color, spentCents,
+      categoryId: category.id, name: category.name, spentCents, fixed, expectedCents,
       count: counts.get(category.id) || 0, budgetCents: row ? row.amount_cents : null, budgetKind: kind,
-      over: Boolean(row) && spentCents > row.amount_cents,
+      over: !fixed && Boolean(row) && spentCents > row.amount_cents, // (a fixed cost is never "over")
     });
   }
   // (deleted categories' expenses, if any)
   for (const [id, cents] of spent) {
-    if (!categoryById(id)) rows.push({ categoryId: id, name: 'Deleted category', color: '#6b6560', spentCents: cents, count: counts.get(id) || 0, budgetCents: null, budgetKind: 'none', over: false });
+    if (!categoryById(id)) rows.push({ categoryId: id, name: 'Deleted category', spentCents: cents, fixed: false, expectedCents: null, count: counts.get(id) || 0, budgetCents: null, budgetKind: 'none', over: false });
   }
-  rows.sort((a, b) => b.spentCents - a.spentCents);
+  // The biggest day-to-day categories first; the fixed costs, which don't move, after them.
+  rows.sort((a, b) => (a.fixed - b.fixed) || ((b.fixed ? b.expectedCents : b.spentCents) - (a.fixed ? a.expectedCents : a.spentCents)));
   const total = rows.reduce((s, r) => s + r.spentCents, 0);
   const budgeted = rows.filter((r) => r.budgetCents !== null);
   const categoriesBudget = budgeted.reduce((s, r) => s + r.budgetCents, 0);
-  // The month's budget: the one for everything when it's set (against everything spent), else the
-  // categories' budgets added up (against what's spent in them).
+  const split = splitFor(month);
+  // The month's budget: the one for everything when it's set, else the categories' budgets added up. What
+  // counts against it: the fixed costs as expected (logged or not) plus the day-to-day spending, so paying
+  // the rent changes nothing.
   const monthly = monthlyBudgetFor(month);
   return {
-    month, total, count: monthTransactions(month).length, rows, categoriesBudget,
+    month, total, count: monthTransactions(month).length, rows, categoriesBudget, ...split,
     budgetTotal: monthly.row ? monthly.row.amount_cents : categoriesBudget,
-    budgetedSpent: monthly.row ? total : budgeted.reduce((s, r) => s + r.spentCents, 0),
+    budgetedSpent: monthly.row ? split.fixedExpected + split.dayToDay
+      : budgeted.reduce((s, r) => s + (r.fixed ? r.expectedCents : r.spentCents), 0),
     budgetKind: monthly.row ? (monthly.kind === 'month' ? 'month' : 'every') : 'categories',
   };
 }
 
-/** The month as one ray per day (the Month screen's signature): [{ day, iso, cents, future, today }]. */
+/** The month's day-to-day spending as one ray per day (the Month screen's signature): [{ day, iso, cents, future, today }]. */
 export function daysOf(month = state.month) {
   const today = todayISO();
+  const fixed = fixedIds();
   const byDay = new Map();
-  for (const tx of monthTransactions(month)) byDay.set(tx.occurred_on, (byDay.get(tx.occurred_on) || 0) + tx.amount_cents);
+  for (const tx of monthTransactions(month)) {
+    if (!fixed.has(tx.category_id)) byDay.set(tx.occurred_on, (byDay.get(tx.occurred_on) || 0) + tx.amount_cents);
+  }
   const out = [];
   for (let d = 1; d <= daysInMonth(month); d += 1) {
     const iso = `${month}-${String(d).padStart(2, '0')}`;
@@ -282,10 +340,11 @@ export function incomeFor(month = state.month) {
   return { rows, received, expected, total: received + expected };
 }
 
-/** Income, spending, what's left and the share saved, for a month. Spending for the current month is the forecast's. */
+/** Income, spending, what's left and the share saved, for a month. Fixed costs count as expected (logged or not). */
 export function netFor(month = state.month) {
   const income = incomeFor(month);
-  const spent = monthTotalCents(month);
+  const { fixedExpected, fixedLogged } = splitFor(month);
+  const spent = monthTotalCents(month) + Math.max(0, fixedExpected - fixedLogged);
   const net = income.total - spent;
   return { income, spent, net, rate: income.total > 0 ? net / income.total : null };
 }
@@ -328,7 +387,8 @@ const euro = (cents) => `${(cents / 100).toFixed(2).replace('.', ',')} €`;
 /**
  * What looks wrong: [{ key, kind: 'double'|'odd', tx, other?, reason }].
  * double: the same amount, same day, same category, logged from two places (Apple Pay through Otso and by
- * hand, say), unless the two name different shops. odd: over twice the category's big expenses, 30 € or more.
+ * hand, say), unless the two name different shops (the rent logged twice is a double too). odd: over twice the
+ * category's big expenses, 30 € or more; day-to-day categories only.
  */
 export function flags() {
   const since = addDaysISO(todayISO(), -FLAG_DAYS);
@@ -352,7 +412,9 @@ export function flags() {
     if (!byCategory.has(tx.category_id)) byCategory.set(tx.category_id, []);
     byCategory.get(tx.category_id).push(tx);
   }
+  const fixed = fixedIds();
   for (const tx of recent) {
+    if (fixed.has(tx.category_id)) continue;
     const others = (byCategory.get(tx.category_id) || []).filter((o) => o.id !== tx.id).map((o) => o.amount_cents);
     if (others.length < ODD_HISTORY) continue;
     const big = percentile(others, 0.9);

@@ -98,7 +98,15 @@ input, select, textarea {
   background: var(--raised); color: var(--text); font: 16px var(--body);
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--amber); outline-offset: 0; border-color: var(--amber); }
-input[type="color"] { padding: 4px; height: 46px; }
+/* The category list: the phone's own picker, drawn as a field with a thin chevron. 16 px so iOS doesn't zoom. */
+select {
+  -webkit-appearance: none; appearance: none; cursor: pointer; padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a39b8c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center; background-size: 14px;
+}
+select:invalid { color: var(--muted); } /* (still on "Choose a category") */
+option { color: var(--text); background: var(--raised); }
+.stack { display: grid; gap: 14px; }
 input[type="checkbox"] { width: 22px; min-height: 22px; height: 22px; accent-color: var(--amber); margin: 0; }
 .check { display: flex; gap: 12px; align-items: flex-start; font: 15px var(--body); text-transform: none; letter-spacing: 0; color: var(--soft); }
 .field { display: grid; gap: 6px; }
@@ -128,24 +136,16 @@ input[type="checkbox"] { width: 22px; min-height: 22px; height: 22px; accent-col
 .link-btn { background: none; border: 0; padding: 6px 0; color: var(--amber); font: 700 14px var(--display); cursor: pointer; }
 /* Controls (Alex, 10 Nov 2026: no pills). A choice between a few options is words with a rule under the chosen
    one, as a newspaper's section navigation (style B). A list is a grouped panel; its actions are words, the main one
-   in amber; a row that opens something has a chevron; picking from a list puts a check by the chosen row (style C).
-   Status is a small-caps word coloured by what it means. */
+   in amber. Picking a category is a native select (19 Nov 2026). Status is a small-caps word coloured by what it
+   means. No coloured dots: a category is its name. */
 .word-tabs { display: flex; flex-wrap: wrap; gap: 2px 20px; border-bottom: 1px solid var(--line); }
 .word-tab { min-height: 42px; padding: 0; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none;
   color: var(--muted); font: 600 15px var(--display); cursor: pointer; }
 .word-tab:hover { color: var(--soft); }
 .word-tab[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--amber); }
 .group { background: var(--panel); border-radius: 12px; padding: 0 14px; }
-.sheet .group, .sheet .pick-list, .sheet .rows { background: #191510; } /* (a little lighter than the sheet itself) */
+.sheet .group, .sheet .rows { background: #191510; } /* (a little lighter than the sheet itself) */
 .group > :last-child, .group > :last-child.item, .group > .tx:last-child, .group > .row:last-child { border-bottom: 0; }
-.pick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); column-gap: 18px;
-  background: var(--panel); border-radius: 12px; padding: 0 14px; }
-.pick { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0; border: 0; border-bottom: 1px solid var(--line);
-  background: none; color: var(--text); font: 600 15px var(--display); text-align: left; cursor: pointer; }
-.pick > span:last-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pick:hover { color: var(--amber); }
-.pick[aria-pressed="true"]::after { content: ""; width: 6px; height: 11px; margin: 0 4px 3px 0; border: solid var(--amber); border-width: 0 2px 2px 0; transform: rotate(45deg); flex: none; }
-.pick.go::after { content: "›"; color: var(--muted); font: 400 20px/1 var(--body); }
 .act { min-height: 40px; padding: 0 2px; border: 0; background: none; color: var(--soft); font: 700 14px var(--display); cursor: pointer; }
 .act:hover { color: var(--text); text-decoration: underline; text-underline-offset: 4px; }
 .act-main { color: var(--amber); }
@@ -153,7 +153,6 @@ input[type="checkbox"] { width: 22px; min-height: 22px; height: 22px; accent-col
 .tag { font: 700 12px var(--display); font-variant: small-caps; text-transform: lowercase; letter-spacing: .07em; color: var(--muted); }
 .tag-otso { color: var(--soft); }
 .tag-check { color: var(--amber); }
-.dot { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
 
 /* ---------- The app's frame ---------- */
 #view-app { position: relative; min-height: 100vh; min-height: 100dvh; }
@@ -223,15 +222,15 @@ main { position: relative; z-index: 1; max-width: 640px; margin: 0 auto;
 .rows { display: grid; background: var(--panel); border-radius: 12px; padding: 0 14px; }
 .rows > .row:last-child { border-bottom: 0; }
 .row {
-  display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; align-items: center; padding: 12px 0;
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 12px 0;
   border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; width: 100%; cursor: pointer;
 }
 .row-name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row-sub { grid-column: 2 / -1; color: var(--muted); font-size: .86rem; }
+.row-sub { grid-column: 1 / -1; color: var(--muted); font-size: .86rem; }
 .row-amount { font: 700 16px var(--display); font-variant-numeric: tabular-nums; text-align: right; }
 .row-amount small { color: var(--muted); font: 600 13px var(--display); }
 .row.over .row-amount { color: var(--red-text); }
-.bar { grid-column: 2 / -1; height: 5px; border-radius: 3px; background: var(--line); position: relative; overflow: hidden; }
+.bar { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: var(--line); position: relative; overflow: hidden; }
 .bar i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--amber); }
 .row.over .bar i { background: var(--red); }
 .empty { color: var(--muted); padding: 18px 0; margin: 0; }
@@ -246,7 +245,7 @@ main { position: relative; z-index: 1; max-width: 640px; margin: 0 auto;
 .day { display: grid; }
 .day-head { display: flex; justify-content: space-between; align-items: baseline; padding: 16px 0 8px;
   font: 700 13px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.tx { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 12px; align-items: center; padding: 11px 0;
+.tx { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; padding: 11px 0;
   border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; width: 100%; cursor: pointer; }
 .tx-main { min-width: 0; display: grid; }
 .tx-cat { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -299,7 +298,7 @@ body.has-sheet { overflow: hidden; }
 .menu-item:last-child { border-bottom: 0; }
 .menu-item b { font: 700 17px var(--display); }
 .menu-item span { color: var(--muted); font-size: .9rem; }
-.cat-row { display: grid; grid-template-columns: auto auto 1fr auto auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); background: var(--surface); }
+.cat-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); background: var(--surface); }
 .cat-row.is-dragging { opacity: .85; position: relative; z-index: 2; }
 .drag-handle { touch-action: none; cursor: grab; color: var(--muted); }
 .token { display: grid; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--line); }

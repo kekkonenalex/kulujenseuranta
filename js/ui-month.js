@@ -13,7 +13,7 @@ import {
 import {
   formatMoney, formatMoneyWhole, monthName, ordinal, currentMonth, formatDay, parseAmountToCents, formatAmount,
 } from './format.js';
-import { escapeHtml, safeColor, openSheet, closeSheet, toast, setBusy, showError, clearError } from './ui-common.js';
+import { escapeHtml, openSheet, closeSheet, toast, setBusy, showError, clearError } from './ui-common.js';
 import { openIncome } from './ui-settings.js';
 import { openExpense } from './ui-expenses.js';
 
@@ -44,30 +44,51 @@ export function renderMonth(panel) {
   if (income) income.addEventListener('click', () => openIncome());
 }
 
+const whole = (cents) => escapeHtml(formatMoneyWhole(cents));
+const roundEuro = (cents) => Math.round(cents / 100) * 100;
+
+/* What's left of the budget is the budget less the fixed costs as expected (logged or not) and the day-to-day
+   spending: paying the rent on the 1st changes nothing. "Usually" and the pace are day-to-day only. */
 function hero(summary, pace, isNow) {
   const budget = summary.budgetTotal;
+  const hasFixed = summary.fixedExpected > 0;
   const bits = [];
   if (budget) {
-    const over = summary.budgetedSpent > budget;
+    const left = budget - summary.budgetedSpent;
     const whose = summary.budgetKind === 'month' ? ` (${escapeHtml(monthName(summary.month))}'s own)` : '';
-    bits.push(`of <b class="num">${escapeHtml(formatMoneyWhole(budget))}</b> budget${whose}${over ? ` · <span class="over">${escapeHtml(formatMoneyWhole(summary.budgetedSpent - budget))} over</span>` : ''}`);
+    bits.push(`of <b class="num">${whole(budget)}</b> budget${whose}`);
+    bits.push(left >= 0 ? `<b class="num">${whole(left)}</b> left` : `<span class="over">${whole(-left)} over</span>`);
   }
-  if (pace) {
-    bits.push(`usually <b class="num">${escapeHtml(formatMoneyWhole(pace.usualByNow))}</b> by the ${ordinal(pace.day)}`);
+  let usual = '';
+  if (pace && hasFixed) {
+    usual = `<p class="hero-sub"><b class="num">${whole(pace.spent)}</b> day-to-day, usually <b class="num">${whole(pace.usualByNow)}</b> by the ${ordinal(pace.day)}</p>`;
+  } else if (pace) {
+    bits.push(`usually <b class="num">${whole(pace.usualByNow)}</b> by the ${ordinal(pace.day)}`);
   }
-  const forecast = pace && pace.forecast > pace.spent
-    ? `<p class="hero-sub">Heading for about <b class="num">${escapeHtml(formatMoneyWhole(pace.forecast))}</b> by the month's end${budget && pace.forecast > budget ? `, <span class="over">over the budget</span>` : ''}.</p>` : '';
+  let forecast = '';
+  if (pace && pace.forecast > summary.total) {
+    const over = budget && pace.forecast > budget ? `, <span class="over">over the budget</span>` : '';
+    if (hasFixed) {
+      const fixed = roundEuro(pace.fixedExpected);
+      const dayToDay = roundEuro(pace.dayToDayForecast);
+      const notLogged = pace.fixedLogged < pace.fixedExpected ? ' (not logged yet)' : '';
+      forecast = `<p class="hero-sub">Heading for about <b class="num">${whole(fixed + dayToDay)}</b> by the month's end${over}: ${whole(fixed)} fixed${notLogged}, about ${whole(dayToDay)} day-to-day.</p>`;
+    } else {
+      forecast = `<p class="hero-sub">Heading for about <b class="num">${whole(pace.forecast)}</b> by the month's end${over}.</p>`;
+    }
+  }
   return `
     <div class="hero">
       <span class="hero-label">${isNow ? 'Spent so far' : `Spent in ${escapeHtml(monthName(summary.month))}`}</span>
       <span class="hero-amount num">${escapeHtml(formatMoney(summary.total))}</span>
       ${bits.length ? `<p class="hero-sub">${bits.join(' · ')}</p>` : ''}
+      ${usual}
       ${forecast}
     </div>`;
 }
 
 function rays(month) {
-  const days = daysOf(month);
+  const days = daysOf(month); // (day-to-day only: the rent's day doesn't dwarf the others)
   const most = Math.max(1, ...days.map((d) => d.cents));
   const bars = days.map((d) => {
     const height = d.cents ? Math.max(4, Math.round((d.cents / most) * 100)) : 0;
@@ -76,7 +97,7 @@ function rays(month) {
     return `<span class="${cls}${d.today ? ' today' : ''}" style="height:${d.cents ? height : 2}%" title="${escapeHtml(label)}"></span>`;
   }).join('');
   const biggest = days.reduce((a, b) => (b.cents > a.cents ? b : a), days[0]);
-  const aria = biggest.cents ? `Spending per day. The biggest day was ${formatDay(biggest.iso)}, ${formatMoney(biggest.cents)}.` : 'No spending yet this month.';
+  const aria = biggest.cents ? `Day-to-day spending per day. The biggest day was ${formatDay(biggest.iso)}, ${formatMoney(biggest.cents)}.` : 'No day-to-day spending yet this month.';
   return `<div><div class="dayrays" role="img" aria-label="${escapeHtml(aria)}">${bars}</div>
     <div class="dayrays-axis" aria-hidden="true"><span>1</span><span>${Math.ceil(days.length / 2)}</span><span>${days.length}</span></div></div>`;
 }
@@ -127,6 +148,16 @@ function categoriesHtml(summary) {
     return `<div><h2 class="section-title">Categories</h2><p class="empty">Nothing logged in ${escapeHtml(monthName(summary.month))}. Press + to log an expense.</p></div>`;
   }
   const rows = summary.rows.map((r) => {
+    const count = `${r.count} expense${r.count === 1 ? '' : 's'}`;
+    if (r.fixed) {
+      // A fixed cost: what's logged of what's expected, no bar, never red.
+      return `
+      <button type="button" class="row" data-category="${escapeHtml(r.categoryId)}">
+        <span class="row-name">${escapeHtml(r.name)}</span>
+        <span class="row-amount">${escapeHtml(formatMoney(r.spentCents))} <small>of ${whole(r.expectedCents)}</small></span>
+        <span class="row-sub">${r.count ? escapeHtml(count) : 'not logged yet'} · fixed</span>
+      </button>`;
+    }
     const width = r.budgetCents ? Math.min(100, Math.round((r.spentCents / r.budgetCents) * 100)) : 0;
     const of = r.budgetCents !== null ? ` <small>/ ${escapeHtml(formatMoneyWhole(r.budgetCents))}</small>` : '';
     const left = r.budgetCents !== null
@@ -134,11 +165,10 @@ function categoriesHtml(summary) {
       : 'no budget';
     return `
       <button type="button" class="row${r.over ? ' over' : ''}" data-category="${escapeHtml(r.categoryId)}">
-        <span class="dot" style="background:${safeColor(r.color)}"></span>
         <span class="row-name">${escapeHtml(r.name)}</span>
         <span class="row-amount">${escapeHtml(formatMoney(r.spentCents))}${of}</span>
         ${r.budgetCents !== null ? `<span class="bar"><i style="width:${width}%"></i></span>` : ''}
-        <span class="row-sub">${r.count} expense${r.count === 1 ? '' : 's'} · ${escapeHtml(left)}</span>
+        <span class="row-sub">${escapeHtml(count)} · ${escapeHtml(left)}</span>
       </button>`;
   }).join('');
   return `<div><div class="section-head"><h2 class="section-title">Categories</h2><span class="muted small">tap for the expenses</span></div>
@@ -159,7 +189,6 @@ function openCategory(categoryId) {
 
   const lines = txs.map((tx) => `
     <button type="button" class="tx" data-tx="${escapeHtml(tx.id)}">
-      <span class="dot" style="background:${safeColor(cat && cat.color)}"></span>
       <span class="tx-main"><span class="tx-cat">${escapeHtml(tx.description || name)}</span>
         <span class="tx-desc">${escapeHtml(formatDay(tx.occurred_on))} · ${escapeHtml(SOURCE_LABEL[sourceOf(tx)])}</span></span>
       <span class="tx-amount">${escapeHtml(formatMoney(tx.amount_cents))}</span>
@@ -168,7 +197,7 @@ function openCategory(categoryId) {
     ? `<p class="sheet-text">Usually <b>${escapeHtml(formatMoney(pace.usualByNow))}</b> by the ${ordinal(pace.day)}; this month <b>${escapeHtml(formatMoney(pace.spent))}</b>.</p>` : '';
 
   const body = openSheet(name, `
-    <p class="hero-sub"><b class="num">${escapeHtml(formatMoney(total))}</b> in ${escapeHtml(monthName(month))}, biggest first${row ? ` · budget ${escapeHtml(formatMoney(row.amount_cents))}${kind === 'month' ? ' (this month only)' : ''}` : ''}</p>
+    <p class="hero-sub"><b class="num">${escapeHtml(formatMoney(total))}</b> in ${escapeHtml(monthName(month))}, biggest first${row ? ` · budget ${escapeHtml(formatMoney(row.amount_cents))}${kind === 'month' ? ' (this month only)' : ''}` : ''}${cat && cat.fixed ? ' · fixed' : ''}</p>
     ${usual}
     ${lines ? `<div class="group">${lines}</div>` : '<p class="empty">Nothing this month.</p>'}
     ${cat ? '<div class="btn-row"><button type="button" class="btn btn-quiet" data-budget>Set the budget</button></div>' : ''}
