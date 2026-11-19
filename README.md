@@ -7,11 +7,15 @@ it: Apple Pay taps through Otso, and the iPhone Shortcut. The app is where the m
 spent, where it's heading, what Otso logged and noticed, and what's left of the income.
 
 - **Month** (the app opens here):
-  - what's spent, drawn as one ray a day;
+  - what's spent, and what's left of the budget; the day-to-day spending drawn as one ray a day;
   - what's usual by this day, and where the month is heading, from your own history;
   - Otso's read, when something crosses a threshold;
   - income, what's left and the share kept;
   - each category against its budget. Tap a category for its expenses, biggest first, and its budget.
+- **Fixed monthly costs** (the rent, in its own category Vuokra): a category marked fixed counts as
+  expected from the 1st, at its budget (else last month's amount) until more is logged, so paying it
+  changes nothing. The pace, "usually", the day rays and the "far bigger than usual" flag look at the
+  day-to-day spending only. The forecast is the fixed costs plus the day-to-day spending's.
 - **Expenses**:
   - the month by day;
   - Find, with totals ("coffee", "wolt", "12,50", "october");
@@ -24,9 +28,9 @@ spent, where it's heading, what Otso logged and noticed, and what's left of the 
   - its monthly letters.
 
   Nothing here pushes: Otso's messages stay in Telegram.
-- **+** logs an expense: type the amount, tap the category, and it's saved.
-- **Settings** (the icon at the top): Categories, Budgets, Income (paydays), Connections (tokens), Data
-  (Excel, backup), Account.
+- **+** logs an expense: type the amount, choose the category from the list, Save (with Undo).
+- **Settings** (the icon at the top): Categories (names, order, fixed costs), Budgets, Income (paydays),
+  Connections (tokens), Data (Excel, backup), Account.
 
 The design is look A, "Kulta": true black, Otso's aurora in amber, and the bear drawn in rays. See
 `docs/otso-expenses/` for the scan, the brainstorm, the four looks, the council's verdict and the ledger.
@@ -50,8 +54,11 @@ styles.css            look A
 sw.js                 service worker (the app's shell, offline start)
 manifest.webmanifest  install as an app
 sql/build1.sql        build 1's database changes (and sql/rollback-build1.sql)
-supabase-schema.sql   the whole schema, idempotent
-tools/contract_test.py  checks the RPCs the Shortcut and Otso use, against the live project
+sql/build1b.sql       the whole month's budget
+sql/build2.sql        fixed monthly costs, Vuokra and the rent (its rollback is at its end)
+supabase-schema.sql   the whole schema, idempotent (build 2's data steps are only in sql/build2.sql)
+tools/contract_test.py  checks the RPCs the Shortcut and Otso use, against the live project (read-only
+                        unless --write); --preview shows what build 2 would move
 tools/preview.html    the app on a fake database with example data (no sign-in)
 tools/make_icons.py   draws the icons
 js/
@@ -86,8 +93,11 @@ So:
   python tools/contract_test.py
   ```
 
-  After build 1, run `--after --write`. `--write` logs 0,01 € and undoes it at once.
-- Every change has a rollback beside it (`sql/rollback-build1.sql`).
+  After build 1, run `--after --write`. `--write` logs 0,01 € and undoes it at once. Before build 2,
+  `--preview` shows what it would move (read-only); after it, `--after` checks the build-2 keys too.
+- Every change has a rollback beside it (`sql/rollback-build1.sql`, the end of `sql/build2.sql`).
+- The app keeps working before a paste: it notices a missing table or column and carries on without it
+  (build 1's income and notes, build 1b's whole-month budget, build 2's `fixed`).
 
 ### Build 1 (`sql/build1.sql`)
 
@@ -102,9 +112,22 @@ So:
 - **Otso's notes** (`otso_notes`): only a token with the notes right can post them, through
   `post_otso_note` and `clear_otso_note`. The app shows them as plain text, never as markup.
 
+### Build 2 (`sql/build2.sql`, 19 Nov 2026)
+
+- **`categories.fixed`**: a fixed monthly cost. The rent gets its own category, **Vuokra** (fixed), and
+  Asuminen's expenses of exactly 875,00 € move to it.
+- **Budgets**: Vuokra 875 € every month; Asuminen 875 € less wherever the rent was in it. Every month's
+  category budgets add up to what they did before.
+- **`expense_overview`**: each category says `fixed`; `fixed_cents` is the fixed costs expected this month;
+  `forecast_cents` is that plus a straight line of the day-to-day spending; `budget_total_cents` is the
+  whole-month budget when one is set (build 1b), else the categories' added up. Every key it had stays.
+- **`list_expenses`**: each expense says whether its category is `fixed`.
+- The colour column stays (backups carry it); the app no longer shows or writes colours.
+
 ## The iPhone Shortcut
 
-Unchanged by build 1. It uses the same functions, arguments, ` (kuvaus)` marker and `message`. See
+Unchanged by builds 1 and 2 (build 2 only adds Vuokra to its category list). It uses the same functions,
+arguments, ` (kuvaus)` marker and `message`. See
 [PIKAKOMENTO.md](PIKAKOMENTO.md) (in Finnish).
 
 What a token can do:

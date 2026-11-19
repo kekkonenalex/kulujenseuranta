@@ -265,7 +265,7 @@ export function monthSummary(month = state.month) {
     if (category.archived && !spentCents) continue;
     if (!spentCents && !row && !expectedCents) continue;
     rows.push({
-      categoryId: category.id, name: category.name, spentCents, fixed, expectedCents,
+      categoryId: category.id, name: category.name, spentCents, fixed, expectedCents, past: month < currentMonth(),
       count: counts.get(category.id) || 0, budgetCents: row ? row.amount_cents : null, budgetKind: kind,
       over: !fixed && Boolean(row) && spentCents > row.amount_cents, // (a fixed cost is never "over")
     });

@@ -150,12 +150,12 @@ function categoriesHtml(summary) {
   const rows = summary.rows.map((r) => {
     const count = `${r.count} expense${r.count === 1 ? '' : 's'}`;
     if (r.fixed) {
-      // A fixed cost: what's logged of what's expected, no bar, never red.
+      // A fixed cost: what's logged of what's expected, no bar, never red. A past month: what was logged.
       return `
       <button type="button" class="row" data-category="${escapeHtml(r.categoryId)}">
         <span class="row-name">${escapeHtml(r.name)}</span>
-        <span class="row-amount">${escapeHtml(formatMoney(r.spentCents))} <small>of ${whole(r.expectedCents)}</small></span>
-        <span class="row-sub">${r.count ? escapeHtml(count) : 'not logged yet'} · fixed</span>
+        <span class="row-amount">${escapeHtml(formatMoney(r.spentCents))}${r.past ? '' : ` <small>of ${whole(r.expectedCents)}</small>`}</span>
+        <span class="row-sub">${r.count ? escapeHtml(count) : r.past ? 'nothing logged' : 'not logged yet'} · fixed</span>
       </button>`;
     }
     const width = r.budgetCents ? Math.min(100, Math.round((r.spentCents / r.budgetCents) * 100)) : 0;

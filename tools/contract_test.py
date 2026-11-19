@@ -4,7 +4,9 @@ There is no staging database (Otso - Expenses, verdict.md): run this before and 
 
     python tools/contract_test.py            # read-only checks
     python tools/contract_test.py --write    # also logs 0,01 EUR and undoes it at once
-    python tools/contract_test.py --after    # also the build-1 additions (code, id, source, truncated, notes)
+    python tools/contract_test.py --after    # also the build-1 and build-2 additions (code, id, source,
+                                             # truncated, notes; fixed, fixed_cents, Vuokra)
+    python tools/contract_test.py --preview  # read-only: what sql/build2.sql would move (rent rows, budgets)
 
 The project URL and publishable key come from js/config.js (public). The device token comes from the
 environment (KULUT_TOKEN) or from Otso's private env file (default ~/.otso/.env). It is never printed.
@@ -67,10 +69,54 @@ def has(row: dict, *keys: str) -> bool:
     return isinstance(row, dict) and all(k in row for k in keys)
 
 
+RENT_CENTS = 87500  # build2.sql moves Asuminen's expenses of exactly 875,00 EUR to Vuokra
+
+
+def add_months(month: str, delta: int) -> str:
+    y, m = map(int, month.split("-"))
+    n = y * 12 + (m - 1) + delta
+    return f"{n // 12:04d}-{n % 12 + 1:02d}"
+
+
+def eur(cents) -> str:
+    return "-" if cents is None else f"{cents / 100:.2f}".replace(".", ",") + " EUR"
+
+
+def preview_build2(url: str, key: str, tok: str, names: list) -> None:
+    """Read-only: what sql/build2.sql would do, from the RPCs Otso reads. Changes nothing."""
+    print("\nsql/build2.sql preview (read-only)")
+    asuminen = next((n for n in names if re.sub(r"\s*\(kuvaus\)\s*$", "", n).strip().lower() == "asuminen"), None)
+    vuokra = next((n for n in names if re.sub(r"\s*\(kuvaus\)\s*$", "", n).strip().lower() == "vuokra"), None)
+    print(f"  categories: Asuminen {'found' if asuminen else 'MISSING (build2 then creates no Vuokra)'}, "
+          f"Vuokra {'already there' if vuokra else 'not yet'}")
+    if asuminen:
+        start, end = date.today() - timedelta(days=369), date.today() + timedelta(days=31)
+        rows = rpc(url, key, "list_expenses", p_token=tok, p_from=start.isoformat(), p_to=end.isoformat(),
+                   p_category=asuminen, p_limit=500)
+        found = rows.get("expenses") or [] if isinstance(rows, dict) else []
+        rent = [e for e in found if e.get("amount_cents") == RENT_CENTS]
+        other = [e for e in found if e.get("amount_cents") != RENT_CENTS]
+        print(f"  Asuminen, {start} to {end}: {len(found)} expenses; {len(rent)} of exactly {eur(RENT_CENTS)} would move")
+        for e in rent:
+            print(f"    move  {e.get('occurred_on')}  {eur(e.get('amount_cents'))}  from {e.get('source')}")
+        for e in other:
+            print(f"    stays {e.get('occurred_on')}  {eur(e.get('amount_cents'))}")
+    for m in [add_months(date.today().strftime("%Y-%m"), d) for d in (-3, -2, -1, 0, 1)]:
+        over = rpc(url, key, "expense_overview", p_token=tok, p_month=m)
+        cats = {c.get("category"): c for c in (over.get("categories") or [])} if isinstance(over, dict) else {}
+        a, v = cats.get("Asuminen") or {}, cats.get("Vuokra") or {}
+        total = over.get("budget_total_cents") if isinstance(over, dict) else None
+        line = f"  {m}: Asuminen budget {eur(a.get('budget_cents'))}, spent {eur(a.get('spent_cents'))}"
+        if v:
+            line += f"; Vuokra budget {eur(v.get('budget_cents'))}, spent {eur(v.get('spent_cents'))}"
+        print(line + f"; budget total {eur(total)}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--write", action="store_true", help="log 0,01 EUR and undo it")
-    parser.add_argument("--after", action="store_true", help="check the build-1 additions too")
+    parser.add_argument("--after", action="store_true", help="check the build-1 and build-2 additions too")
+    parser.add_argument("--preview", action="store_true", help="read-only: what sql/build2.sql would move")
     parser.add_argument("--env", default="~/.otso/.env")
     args = parser.parse_args()
     url, key = config()
@@ -125,6 +171,33 @@ def main() -> int:
                   and len(some.get("expenses") or []) > 0, str(some)[:200])
         note = rpc(url, key, "post_otso_note", p_token=bogus, p_key="t", p_kind="read", p_title="t", p_body="t")
         check("post_otso_note refuses a token without the note right", note.get("ok") is False, str(note)[:200])
+
+        print("Build 2 additions (sql/build2.sql: fixed monthly costs)")
+        rows_over = over.get("categories") or []
+        check("expense_overview: fixed_cents, a whole number of cents",
+              isinstance(over.get("fixed_cents"), int) and over["fixed_cents"] >= 0, str(over.get("fixed_cents")))
+        check("...each category says whether it's fixed", bool(rows_over)
+              and all(isinstance(c.get("fixed"), bool) for c in rows_over))
+        vuokra = next((c for c in rows_over if c.get("category") == "Vuokra"), None)
+        check("...Vuokra is there and fixed", bool(vuokra) and vuokra.get("fixed") is True, str(vuokra)[:200])
+        if vuokra:
+            expected = max(vuokra.get("spent_cents") or 0, vuokra.get("budget_cents")
+                           if vuokra.get("budget_cents") is not None else vuokra.get("previous_cents") or 0)
+            check("...fixed_cents counts Vuokra as expected (logged, else its budget, else last month)",
+                  over.get("fixed_cents", -1) >= expected, f"{over.get('fixed_cents')} < {expected}")
+        check("...the forecast, when there is one, includes the fixed costs",
+              over.get("forecast_cents") is None or over["forecast_cents"] >= over.get("fixed_cents", 0),
+              f"{over.get('forecast_cents')} vs {over.get('fixed_cents')}")
+        check("...the keys Otso already reads are all still there",
+              has(over, "ok", "code", "month", "categories", "total_cents", "previous_total_cents",
+                  "budget_total_cents", "forecast_cents", "message"))
+        check("list_expenses rows say whether their category is fixed",
+              all(isinstance(e.get("fixed"), bool) for e in rows["expenses"]), str(rows["expenses"][:1])[:200])
+        check("list_expense_categories has Vuokra",
+              any(re.sub(r"\s*\(kuvaus\)\s*$", "", n).strip() == "Vuokra" for n in names or []))
+
+    if args.preview:
+        preview_build2(url, key, tok, names or [])
 
     if args.write:
         print("Write half (0,01 EUR, undone at once)")

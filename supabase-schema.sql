@@ -1367,3 +1367,240 @@ grant execute on function public.clear_otso_note(text, text) to anon, authentica
 
 -- Done. Next: in the app's settings, give Otso's token the "Otso's notes" right (or run:
 --   update public.device_tokens set can_note = true where name = '<Otso's token name>';)
+
+
+-- ============================================================
+--  BUILD 1B (Otso - Expenses): the same as sql/build1b.sql. Idempotent.
+-- ============================================================
+
+-- ============================================================
+--  Otso - Expenses, build 1b (10 Nov 2026): one budget for the whole month.
+--
+--  A monthly budget for everything: one amount for every month (year_month null), and a month of its own
+--  where that month differs ('2026-12'). The category budgets stay as they are, inside it. Only adds a
+--  table: the Shortcut, Otso and every RPC are untouched. Idempotent.
+--  Before and after: python tools/contract_test.py --after
+--  Undo: drop table public.monthly_budgets;  (the app then goes back to the categories' sum)
+-- ============================================================
+
+create table if not exists public.monthly_budgets (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  year_month    text check (year_month is null or year_month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+  amount_cents  integer not null check (amount_cents >= 0 and amount_cents <= 100000000),
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+-- One every-month budget per user, and one per user and month.
+create unique index if not exists monthly_budgets_default_uniq on public.monthly_budgets (user_id) where year_month is null;
+create unique index if not exists monthly_budgets_month_uniq on public.monthly_budgets (user_id, year_month) where year_month is not null;
+
+drop trigger if exists monthly_budgets_set_updated_at on public.monthly_budgets;
+create trigger monthly_budgets_set_updated_at
+  before update on public.monthly_budgets
+  for each row execute function public.set_updated_at();
+
+alter table public.monthly_budgets enable row level security;
+drop policy if exists monthly_budgets_all on public.monthly_budgets;
+create policy monthly_budgets_all on public.monthly_budgets
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+
+-- ============================================================
+--  BUILD 2 (Otso - Expenses): the schema parts of sql/build2.sql (the fixed column, and
+--  expense_overview and list_expenses with `fixed`). Its data steps (Vuokra, the rent, the budgets)
+--  are Alex's own and stay in sql/build2.sql. Idempotent.
+-- ============================================================
+
+alter table public.categories add column if not exists fixed boolean not null default false;
+alter table public.categories alter column color set default '#f5b544';
+
+create or replace function public.expense_overview(p_token text, p_month text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $fn$
+declare
+  v_user     uuid;
+  v_today    date := public.today_hel();
+  v_month    text;
+  v_start    date;
+  v_end      date;
+  v_pstart   date;
+  v_rows     jsonb;
+  v_fixed    integer;
+  v_total    integer;
+  v_prev     integer;
+  v_budget   integer;
+  v_monthly  integer;
+  v_so_far   integer;
+  v_later    integer;
+  v_day      integer;
+  v_days     integer;
+  v_forecast integer;
+begin
+  v_user := public.token_reader(p_token);
+  if v_user is null then
+    return jsonb_build_object('ok', false, 'code', 'no_read', 'message', 'Virhe: tunnisteella ei ole lukuoikeutta');
+  end if;
+
+  v_month := coalesce(nullif(btrim(coalesce(p_month, '')), ''), to_char(v_today, 'YYYY-MM'));
+  if v_month !~ '^[0-9]{4}-(0[1-9]|1[0-2])$' then
+    return jsonb_build_object('ok', false, 'code', 'bad_month', 'message', 'Virhe: kuukausi muodossa VVVV-KK');
+  end if;
+  v_start  := to_date(v_month || '-01', 'YYYY-MM-DD');
+  v_end    := (v_start + interval '1 month')::date;
+  v_pstart := (v_start - interval '1 month')::date;
+
+  with cats as (
+    select id, name, sort_order, created_at, archived, fixed from public.categories where user_id = v_user
+  ), spent as (
+    select category_id, sum(amount_cents)::integer as cents, count(*)::integer as n
+    from public.transactions
+    where user_id = v_user and occurred_on >= v_start and occurred_on < v_end
+    group by category_id
+  ), prev as (
+    select category_id, sum(amount_cents)::integer as cents
+    from public.transactions
+    where user_id = v_user and occurred_on >= v_pstart and occurred_on < v_start
+    group by category_id
+  ), bud as (
+    select c.id,
+           coalesce(
+             (select b.amount_cents from public.budgets b where b.category_id = c.id and b.year_month = v_month),
+             (select b.amount_cents from public.budgets b where b.category_id = c.id and b.year_month is null)
+           ) as cents
+    from cats c
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'category', c.name,
+           'spent_cents', coalesce(s.cents, 0),
+           'count', coalesce(s.n, 0),
+           'budget_cents', b.cents,
+           'previous_cents', coalesce(p.cents, 0),
+           'fixed', c.fixed
+         ) order by c.sort_order, c.created_at), '[]'::jsonb),
+         coalesce(sum(case
+           when not c.fixed then 0
+           when c.archived or v_month < to_char(v_today, 'YYYY-MM') then coalesce(s.cents, 0)
+           else greatest(coalesce(s.cents, 0), coalesce(b.cents, p.cents, 0))
+         end), 0)::integer
+  into v_rows, v_fixed
+  from cats c
+  left join spent s on s.category_id = c.id
+  left join prev p on p.category_id = c.id
+  left join bud b on b.id = c.id
+  where not c.archived or coalesce(s.cents, 0) > 0 or coalesce(p.cents, 0) > 0;
+
+  select coalesce(sum(amount_cents), 0) into v_total from public.transactions
+  where user_id = v_user and occurred_on >= v_start and occurred_on < v_end;
+  select coalesce(sum(amount_cents), 0) into v_prev from public.transactions
+  where user_id = v_user and occurred_on >= v_pstart and occurred_on < v_start;
+  select sum((r ->> 'budget_cents')::integer) into v_budget
+  from jsonb_array_elements(v_rows) r where r ->> 'budget_cents' is not null;
+
+  -- The whole-month budget (build 1b), when that table is there and one is set.
+  if to_regclass('public.monthly_budgets') is not null then
+    execute 'select coalesce(
+               (select amount_cents from public.monthly_budgets where user_id = $1 and year_month = $2),
+               (select amount_cents from public.monthly_budgets where user_id = $1 and year_month is null))'
+      into v_monthly using v_user, v_month;
+  end if;
+  v_budget := coalesce(v_monthly, v_budget);
+
+  v_forecast := null;
+  if v_month = to_char(v_today, 'YYYY-MM') then
+    v_day  := extract(day from v_today)::integer;
+    v_days := extract(day from (v_end - 1))::integer;
+    if v_day >= 5 then
+      select coalesce(sum(t.amount_cents) filter (where t.occurred_on <= v_today), 0),
+             coalesce(sum(t.amount_cents) filter (where t.occurred_on > v_today), 0)
+      into v_so_far, v_later
+      from public.transactions t
+      join public.categories c on c.id = t.category_id
+      where t.user_id = v_user and t.occurred_on >= v_start and t.occurred_on < v_end and not c.fixed;
+      v_forecast := v_fixed + round(v_so_far::numeric / v_day * v_days)::integer + v_later;
+    end if;
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'code', 'ok',
+    'month', v_month,
+    'categories', v_rows,
+    'total_cents', v_total,
+    'previous_total_cents', v_prev,
+    'budget_total_cents', v_budget,
+    'fixed_cents', v_fixed,
+    'forecast_cents', v_forecast,
+    'message', 'ok'
+  );
+end;
+$fn$;
+
+create or replace function public.list_expenses(
+  p_token    text,
+  p_from     date,
+  p_to       date,
+  p_category text default null,
+  p_limit    integer default 200
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $fn$
+declare
+  v_user  uuid;
+  v_rows  jsonb;
+  v_limit integer := least(greatest(coalesce(p_limit, 200), 1), 500);
+  v_cat   text := nullif(lower(btrim(regexp_replace(coalesce(p_category, ''), '\s*\(kuvaus\)\s*$', '', 'i'))), '');
+  v_count integer;
+begin
+  v_user := public.token_reader(p_token);
+  if v_user is null then
+    return jsonb_build_object('ok', false, 'code', 'no_read', 'expenses', '[]'::jsonb,
+      'message', 'Virhe: tunnisteella ei ole lukuoikeutta');
+  end if;
+  if p_from is null or p_to is null or p_to < p_from or p_to - p_from > 400 then
+    return jsonb_build_object('ok', false, 'code', 'bad_range', 'expenses', '[]'::jsonb,
+      'message', 'Virhe: aikavali puuttuu tai on yli 400 paivaa');
+  end if;
+
+  select count(*) into v_count
+  from public.transactions tr
+  join public.categories c on c.id = tr.category_id
+  where tr.user_id = v_user and tr.occurred_on between p_from and p_to
+    and (v_cat is null or lower(btrim(c.name)) = v_cat);
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'id', t.id,
+           'occurred_on', t.occurred_on,
+           'category', t.category_name,
+           'amount_cents', t.amount_cents,
+           'description', t.description,
+           'source', t.source,
+           'fixed', t.fixed
+         ) order by t.occurred_on desc, t.created_at desc), '[]'::jsonb)
+  into v_rows
+  from (
+    select tr.id, tr.occurred_on, tr.created_at, tr.amount_cents, tr.description, c.name as category_name, c.fixed,
+           coalesce(dt.name, case when tr.device_token_id is null then 'app' else 'removed token' end) as source
+    from public.transactions tr
+    join public.categories c on c.id = tr.category_id
+    left join public.device_tokens dt on dt.id = tr.device_token_id
+    where tr.user_id = v_user and tr.occurred_on between p_from and p_to
+      and (v_cat is null or lower(btrim(c.name)) = v_cat)
+    order by tr.occurred_on desc, tr.created_at desc
+    limit v_limit
+  ) t;
+
+  return jsonb_build_object('ok', true, 'code', 'ok', 'expenses', v_rows, 'message', 'ok',
+    'truncated', v_count > v_limit, 'total_rows', v_count);
+end;
+$fn$;
+
+grant execute on function public.expense_overview(text, text) to anon, authenticated;
+grant execute on function public.list_expenses(text, date, date, text, integer) to anon, authenticated;

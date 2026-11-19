@@ -47,15 +47,54 @@ Re-read `anchor.md` before each step.
   - Verified in `tools/preview.html` (a fake database with example data): phone and desktop width, no
     console errors.
   - Not verified: the real sign-in and the real data in the new app (that needs Alex's login).
+  - Build 1 went live: `sql/build1.sql` pasted, `otso-expenses` merged to `main` (34e89a0).
+- **10 Nov.** After build 1, on `otso-expenses`, each merged to `main` (live):
+  - **2.0.1** (cf3fcfc): the loading screen and the iPhone launch images (the bear in amber rays and the
+    name), and a solid black band over the top edge so iOS doesn't blur it.
+  - **2.1.0** (5f7d6f2): `sql/build1b.sql`, one budget for the whole month (`monthly_budgets`: every
+    month, and a month's own), with a month picker in Budgets; the laptop layout (a rail, two columns,
+    sheets as dialogs); the name on the loading screen; the header's fade off the Find box.
+    Whether `build1b.sql` is pasted isn't written down anywhere: the app says so in Settings, Budgets
+    when it isn't.
+  - **13cc4c4**: controls without pills (`controls.html`): word tabs, small-caps status words, grouped
+    lists with word actions. Live as 2.1.0: the version wasn't raised.
+- **19 Nov.** Round of fixes, on branch `round-19nov` (from 13cc4c4), **2.2.0**. Alex's answer: only the
+  rent is fixed, in its own category Vuokra, and its 875 € moves there from Asuminen.
+  - **E1**: no coloured category dots or colour pickers anywhere (Month, Expenses, the sheets, Settings),
+    nor the status dots in Budgets and Income; the rows lose that column. The `color` column stays in the
+    table and in backups; the app no longer writes it.
+  - **E2**: logging is the amount, a native category list starting on "Choose a category" (disabled),
+    the day and note, and one Save; Undo in the toast as before. The edit sheet uses the same list (an
+    archived category says "(archived)").
+  - **E3**: `sql/build2.sql`. `categories.fixed`; Vuokra (fixed, last in the order); Asuminen's 875,00 €
+    expenses move to it; budgets: Vuokra 875 € every month, Asuminen's every-month 935 → 60 €, and
+    Vuokra 0 € in September 2026 (Asuminen's own 60 € there never had the rent), so every month's
+    category budgets add up as before. `expense_overview` rows carry `fixed`, the answer `fixed_cents`; the
+    forecast is the fixed costs expected plus a straight line of day-to-day spending; `budget_total_cents`
+    follows the whole-month budget when one is set. `list_expenses` rows carry `fixed`. Rollback at the
+    file's end. `tools/contract_test.py --preview` (read-only) shows what it would move;
+    `--after` checks it.
+  - The app: a fixed cost counts as expected from the 1st (logged, else its budget, else last month's;
+    a past month is what was logged). The pace, "usually", the day rays and the "odd" flag use day-to-day
+    spending only ("logged twice" still flags the rent). Left = budget - fixed expected - day-to-day spent,
+    in the hero and in Income's "Left now", so paying the rent changes nothing. Vuokra's row reads
+    "875,00 € of 875 €, 1 expense · fixed", no bar, never red; the forecast "Heading for about 1 480 € by
+    the month's end: 875 € fixed, about 605 € day-to-day" ("(not logged yet)" before it's logged). Settings:
+    "Fixed monthly cost" when editing a category. Before build2.sql the app loads without the column and
+    counts a category named Vuokra as fixed.
+  - Decisions: Vuokra goes last in the category order (as the app adds one); fixed rows come after the
+    day-to-day ones on Month; the hero now says what's left of the budget, not only what's over; a restored
+    backup keeps its colours, nothing else writes one; new categories default to the old amber in the table.
+  - Verified in `tools/preview.html` (fake database, now with Vuokra; `?nofixed` is the database before
+    build2, `?rent=later` the rent not logged yet): 390 px and 1280 px, log and edit sheets, Month,
+    Settings' Categories, Budgets and Income. `build2.sql` parses with Postgres's own parser (pglast), but
+    hasn't run on a real database: there's no staging one.
 
-## Waiting on Alex
-1. `git push origin otso-expenses`. The commit is local: a push to the public repo needs Alex's OK.
-2. Paste `sql/build1.sql` into Supabase's SQL Editor, then run
-   `python tools/contract_test.py --after --write`.
-3. Merge `otso-expenses` into `main`, which deploys. Open the app twice so the phone picks up the new
-   version.
-4. Settings → Connections: tick **Otso's notes** on Otso's token.
+## Waiting on Alex (19 Nov round)
+1. `python tools/contract_test.py --preview`: read-only, shows the rent row(s) and budgets build2 changes.
+2. Paste `sql/build2.sql` into Supabase's SQL Editor and Run; then `python tools/contract_test.py --after`.
+3. Merge `round-19nov` into `main` (deploys 2.2.0); open the app twice.
 
-## Then (build 2, after two weeks of use)
+## Then
 Choose from what Alex actually opened. First candidate: Ask Otso as a mailbox through otso_notes. Others:
 L5/L6 recurring, I3 runway, D6/N3 charts, D8 instant open.
