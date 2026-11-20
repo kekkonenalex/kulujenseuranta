@@ -128,8 +128,8 @@ function dayDetail(iso) {
   const list = rows.map(([name, cents]) => `<li><span>${escapeHtml(name)}</span><span class="num">${escapeHtml(formatMoney(cents))}</span></li>`).join('');
   return `
     <p class="ray-pop-head"><span>${escapeHtml(formatDay(iso))}</span><span class="num">${total ? escapeHtml(formatMoney(total)) : ''}</span></p>
-    ${list ? `<ul class="ray-pop-list">${list}</ul>` : '<p class="ray-pop-note">Nothing spent.</p>'}
-    ${fixedCents ? `<p class="ray-pop-note">Plus ${escapeHtml(formatMoney(fixedCents))} fixed (${escapeHtml([...fixedNames].join(', '))}), not in the bar.</p>` : ''}`;
+    ${list ? `<ul class="ray-pop-list">${list}</ul>` : `<p class="ray-pop-note">${fixedCents ? 'Nothing day-to-day.' : 'Nothing spent.'}</p>`}
+    ${fixedCents ? `<p class="ray-pop-note">${list ? 'Plus' : 'Only'} ${escapeHtml(formatMoney(fixedCents))} fixed (${escapeHtml([...fixedNames].join(', '))}), not in the bar.</p>` : ''}`;
 }
 
 function wireRays(panel) {
