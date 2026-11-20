@@ -197,14 +197,31 @@ main { position: relative; z-index: 1; max-width: 640px; margin: 0 auto;
 .hero-sub .over { color: var(--red-text); }
 
 /* the month drawn as rays: one a day, as tall as the day's spending */
-.dayrays { display: flex; align-items: flex-end; gap: 3px; height: 76px; padding-top: 4px; }
-.dayrays span { flex: 1; min-height: 2px; border-radius: 2px 2px 0 0; background: linear-gradient(to top, var(--copper), var(--amber)); }
-.dayrays span.none { background: var(--line); }
-.dayrays span.future { background: transparent; border-bottom: 2px solid var(--line); border-radius: 0; }
-.dayrays span.today { box-shadow: 0 0 0 1px var(--text); }
+.dayrays { position: relative; display: flex; align-items: flex-end; gap: 3px; height: 76px; padding-top: 4px; }
+/* A day: the whole column is the button (easy to tap), the bar inside it. */
+.ray { flex: 1; min-width: 0; height: 100%; display: flex; align-items: flex-end; padding: 0; border: 0; background: none;
+  color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ray > span { display: block; width: 100%; min-height: 2px; border-radius: 2px 2px 0 0; background: linear-gradient(to top, var(--copper), var(--amber)); }
+.ray.none > span { background: var(--line); }
+.ray.future { cursor: default; }
+.ray.future > span { background: transparent; border-bottom: 2px solid var(--line); border-radius: 0; }
+.ray.today > span { box-shadow: 0 0 0 1px var(--text); }
+.ray[aria-expanded="true"] > span { background: var(--amber); }
+.ray.none[aria-expanded="true"] > span { background: var(--muted); }
+.ray:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
+/* The day's spending, over the chart: it floats, so it alone has a shadow. */
+.ray-pop { position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 5; width: max-content; min-width: 190px;
+  max-width: min(300px, 100%); box-sizing: border-box; padding: 10px 12px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 10px 28px rgba(0, 0, 0, .55); font-size: 14px; }
+.ray-pop-head { display: flex; justify-content: space-between; gap: 16px; margin: 0 0 6px; font: 700 13px var(--display); }
+.ray-pop-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.ray-pop-list li { display: flex; justify-content: space-between; gap: 16px; color: var(--soft); }
+.ray-pop-note { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+.ray-pop-list + .ray-pop-note { padding-top: 6px; border-top: 1px solid var(--line); }
 .dayrays-axis { display: flex; justify-content: space-between; color: var(--muted); font: 600 11px var(--display); margin-top: 6px; }
 
-.read { border-left: 2px solid var(--amber); padding: 2px 0 2px 14px; display: grid; gap: 6px; }
+/* Otso's read: its amber kicker marks it; set off by a hairline, no stripe down its side (human-made UI, 20 Nov 2026). */
+.read { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 6px; }
 .read-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .read-kicker { font: 700 11px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--amber); }
 .read-title { font: 700 17px var(--display); margin: 0; }

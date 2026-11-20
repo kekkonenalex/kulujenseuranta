@@ -8,7 +8,7 @@
 import * as db from './db.js';
 import {
   state, setState, monthSummary, daysOf, paceFor, netFor, readCard, monthTransactions, categoryById,
-  budgetRowFor, SOURCE_LABEL, sourceOf,
+  budgetRowFor, SOURCE_LABEL, sourceOf, fixedIds,
 } from './state.js';
 import {
   formatMoney, formatMoneyWhole, monthName, ordinal, currentMonth, formatDay, parseAmountToCents, formatAmount,
@@ -37,6 +37,7 @@ export function renderMonth(panel) {
     <div class="col col-side">${categoriesHtml(summary)}</div>
   `;
 
+  wireRays(panel);
   const dismiss = panel.querySelector('[data-dismiss-read]');
   if (dismiss) dismiss.addEventListener('click', () => dismissRead(card));
   panel.querySelectorAll('[data-category]').forEach((el) => el.addEventListener('click', () => openCategory(el.dataset.category)));
@@ -87,20 +88,105 @@ function hero(summary, pace, isNow) {
     </div>`;
 }
 
+/* One ray a day. Each past day is a button the height of the chart (easy to tap on a phone), its bar inside it:
+   hovering it on a laptop, or tapping it, shows that day's spending by category (Alex, 20 Nov 2026). */
 function rays(month) {
   const days = daysOf(month); // (day-to-day only: the rent's day doesn't dwarf the others)
   const most = Math.max(1, ...days.map((d) => d.cents));
   const bars = days.map((d) => {
-    const height = d.cents ? Math.max(4, Math.round((d.cents / most) * 100)) : 0;
-    const cls = d.future ? 'future' : d.cents ? '' : 'none';
+    const height = d.cents ? Math.max(4, Math.round((d.cents / most) * 100)) : 2;
+    const cls = ['ray', d.future ? 'future' : d.cents ? '' : 'none', d.today ? 'today' : ''].filter(Boolean).join(' ');
+    if (d.future) return `<span class="${cls}" aria-hidden="true"><span style="height:2%"></span></span>`;
     const label = `${formatDay(d.iso)}: ${d.cents ? formatMoney(d.cents) : 'nothing'}`;
-    return `<span class="${cls}${d.today ? ' today' : ''}" style="height:${d.cents ? height : 2}%" title="${escapeHtml(label)}"></span>`;
+    return `<button type="button" class="${cls}" data-day="${d.iso}" aria-label="${escapeHtml(label)}" aria-expanded="false"><span style="height:${height}%"></span></button>`;
   }).join('');
   const biggest = days.reduce((a, b) => (b.cents > a.cents ? b : a), days[0]);
   const aria = biggest.cents ? `Day-to-day spending per day. The biggest day was ${formatDay(biggest.iso)}, ${formatMoney(biggest.cents)}.` : 'No day-to-day spending yet this month.';
-  return `<div><div class="dayrays" role="img" aria-label="${escapeHtml(aria)}">${bars}</div>
+  return `<div><div class="dayrays" role="group" aria-label="${escapeHtml(aria)}">${bars}<div class="ray-pop" role="status" hidden></div></div>
     <div class="dayrays-axis" aria-hidden="true"><span>1</span><span>${Math.ceil(days.length / 2)}</span><span>${days.length}</span></div></div>`;
 }
+
+/** A day's spending by category, biggest first; a fixed cost paid that day (the rent) said under it, since its
+    bar leaves it out. */
+function dayDetail(iso) {
+  const fixed = fixedIds();
+  const byCategory = new Map();
+  const fixedNames = new Set();
+  let fixedCents = 0;
+  for (const tx of monthTransactions(iso.slice(0, 7))) {
+    if (tx.occurred_on !== iso) continue;
+    const name = (categoryById(tx.category_id) || {}).name || 'No category';
+    if (fixed.has(tx.category_id)) {
+      fixedCents += tx.amount_cents;
+      fixedNames.add(name);
+    } else {
+      byCategory.set(name, (byCategory.get(name) || 0) + tx.amount_cents);
+    }
+  }
+  const rows = [...byCategory].sort((a, b) => b[1] - a[1]);
+  const total = rows.reduce((sum, [, cents]) => sum + cents, 0);
+  const list = rows.map(([name, cents]) => `<li><span>${escapeHtml(name)}</span><span class="num">${escapeHtml(formatMoney(cents))}</span></li>`).join('');
+  return `
+    <p class="ray-pop-head"><span>${escapeHtml(formatDay(iso))}</span><span class="num">${total ? escapeHtml(formatMoney(total)) : ''}</span></p>
+    ${list ? `<ul class="ray-pop-list">${list}</ul>` : '<p class="ray-pop-note">Nothing spent.</p>'}
+    ${fixedCents ? `<p class="ray-pop-note">Plus ${escapeHtml(formatMoney(fixedCents))} fixed (${escapeHtml([...fixedNames].join(', '))}), not in the bar.</p>` : ''}`;
+}
+
+function wireRays(panel) {
+  const box = panel.querySelector('.dayrays');
+  if (!box) return;
+  const pop = box.querySelector('.ray-pop');
+  let pinned = null;
+
+  const show = (button) => {
+    box.querySelectorAll('.ray[aria-expanded="true"]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+    button.setAttribute('aria-expanded', 'true');
+    pop.innerHTML = dayDetail(button.dataset.day);
+    pop.hidden = false;
+    // Above the day, kept inside the chart's width.
+    const area = box.getBoundingClientRect();
+    const bar = button.getBoundingClientRect();
+    const left = bar.left + bar.width / 2 - area.left - pop.offsetWidth / 2;
+    pop.style.left = `${Math.max(0, Math.min(left, area.width - pop.offsetWidth))}px`;
+  };
+  const hide = () => {
+    pinned = null;
+    pop.hidden = true;
+    box.querySelectorAll('.ray[aria-expanded="true"]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+  };
+  const rayOf = (target) => (target instanceof Element ? target.closest('.ray[data-day]') : null);
+
+  // A mouse shows the day while it's over it; a tap (or a click) keeps it until the next tap or a tap elsewhere.
+  box.addEventListener('pointerover', (event) => {
+    const ray = rayOf(event.target);
+    if (event.pointerType === 'mouse' && ray && !pinned) show(ray);
+  });
+  box.addEventListener('pointerleave', (event) => {
+    if (event.pointerType === 'mouse' && !pinned) hide();
+  });
+  box.addEventListener('click', (event) => {
+    const ray = rayOf(event.target);
+    if (!ray) return;
+    if (pinned === ray) { hide(); return; }
+    show(ray);
+    pinned = ray;
+  });
+  box.addEventListener('focusin', (event) => {
+    const ray = rayOf(event.target);
+    if (ray && ray.matches(':focus-visible')) show(ray);
+  });
+  box.addEventListener('focusout', (event) => {
+    if (!box.contains(event.relatedTarget)) hide();
+  });
+  box.addEventListener('keydown', (event) => { if (event.key === 'Escape') hide(); });
+  openRays = { box, hide, pinned: () => pinned };
+}
+
+// A tap anywhere else closes a kept day: one listener for the page, not one per render.
+let openRays = null;
+document.addEventListener('pointerdown', (event) => {
+  if (openRays && openRays.pinned() && openRays.box.isConnected && !openRays.box.contains(event.target)) openRays.hide();
+});
 
 function readHtml(card) {
   return `
