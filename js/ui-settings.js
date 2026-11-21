@@ -7,7 +7,7 @@ import * as db from './db.js';
 import { APP_VERSION } from './config.js';
 import {
   state, setState, allCategoriesSorted, nextSortOrder, transactionCountByCategory, budgetRowFor, incomeFor,
-  monthlyBudgetFor,
+  wholeBudgetFor,
 } from './state.js';
 import {
   formatMoney, formatDate, formatDay, parseAmountToCents, formatAmount, todayISO, isValidISODate, monthName, ordinal,
@@ -227,17 +227,21 @@ let budgetMonth = null;
 function openBudgets(month = budgetMonth || state.month) {
   budgetMonth = month;
   const cats = allCategoriesSorted().filter((c) => !c.archived);
-  const monthly = monthlyBudgetFor(month);
   const every = state.monthlyBudgets.find((b) => !b.year_month) || null;
   const own = state.monthlyBudgets.find((b) => b.year_month === month) || null;
   const catsTotal = cats.reduce((sum, c) => { const r = budgetRowFor(c.id, month).row; return sum + (r ? r.amount_cents : 0); }, 0);
+  const budget = wholeBudgetFor(month, catsTotal);
   const name = monthName(month);
   let fits = '';
-  if (monthly.row) {
-    fits = catsTotal > monthly.row.amount_cents
-      ? `<p class="alert alert-info">The categories' budgets add up to ${escapeHtml(formatMoney(catsTotal))}, ${escapeHtml(formatMoney(catsTotal - monthly.row.amount_cents))} more than the month's budget.</p>`
-      : `<p class="hint">The categories' budgets add up to ${escapeHtml(formatMoney(catsTotal))}; ${escapeHtml(formatMoney(monthly.row.amount_cents - catsTotal))} of the month's budget isn't given to a category.</p>`;
+  if (budget.kind === 'month' || budget.kind === 'every') {
+    fits = catsTotal > budget.cents
+      ? `<p class="alert alert-info">The categories' budgets add up to ${escapeHtml(formatMoney(catsTotal))}, ${escapeHtml(formatMoney(catsTotal - budget.cents))} more than the month's budget.</p>`
+      : catsTotal === budget.cents
+        ? `<p class="hint">The categories' budgets add up to the month's ${escapeHtml(formatMoney(catsTotal))}.</p>`
+        : `<p class="hint">The categories' budgets add up to ${escapeHtml(formatMoney(catsTotal))}; ${escapeHtml(formatMoney(budget.cents - catsTotal))} of the month's budget isn't given to a category.</p>`;
   }
+  // (a month with category budgets of its own: every month's whole budget moves with them, wholeBudgetFor)
+  const moved = !own && every && budget.change !== 0;
   const whole = state.hasMonthly ? `
     <div class="rows">
       <button type="button" class="row" data-monthly="every">
@@ -246,8 +250,10 @@ function openBudgets(month = budgetMonth || state.month) {
         <span class="row-sub">${every ? 'the budget for everything you spend in a month' : 'set one budget for everything, every month'}</span></button>
       <button type="button" class="row" data-monthly="month">
         <span class="row-name">${escapeHtml(name)} only</span>
-        <span class="row-amount">${own ? escapeHtml(formatMoney(own.amount_cents)) : '<small>as every month</small>'}</span>
-        <span class="row-sub">${own ? `${escapeHtml(name)}'s own budget, instead of every month's` : `a different budget for ${escapeHtml(name)}`}</span></button>
+        <span class="row-amount">${own ? escapeHtml(formatMoney(own.amount_cents)) : moved ? escapeHtml(formatMoney(budget.cents)) : '<small>as every month</small>'}</span>
+        <span class="row-sub">${own ? `${escapeHtml(name)}'s own budget, instead of every month's`
+          : moved ? `every month's ${escapeHtml(formatMoney(every.amount_cents))} ${budget.change > 0 ? '+' : '−'} ${escapeHtml(formatMoney(Math.abs(budget.change)))} from ${escapeHtml(name)}'s own category budgets`
+            : `a different budget for ${escapeHtml(name)}`}</span></button>
     </div>${fits}`
     : "<p class=\"alert alert-info\">The month's own budget needs a small database update: paste <code>sql/build1b.sql</code> into Supabase's SQL Editor.</p>";
   const body = openSheet('Budgets', back(`

@@ -145,6 +145,38 @@ export function monthlyBudgetFor(month = state.month) {
   return { row: null, kind: 'none' };
 }
 
+/**
+ * What a month's own category budgets add to every month's whole budget: each one's amount less the category's
+ * every-month budget (none: 0). Alex, 21 Nov 2026: September's and October's own category budgets added up to
+ * 940 € and 1 910 €, and the months still showed every month's 1 530 €.
+ */
+export function ownCategoryChange(month = state.month) {
+  let change = 0;
+  for (const own of state.budgets) {
+    if (own.year_month !== month) continue;
+    const cat = categoryById(own.category_id);
+    if (!cat || cat.archived) continue;
+    const every = state.budgets.find((b) => b.category_id === own.category_id && !b.year_month);
+    change += own.amount_cents - (every ? every.amount_cents : 0);
+  }
+  return change;
+}
+
+/**
+ * The month's whole budget: its own when set; else every month's, moved by the month's own category budgets (so
+ * the categories still add up to it); else the categories' budgets added up. { cents, kind: 'month' | 'every' |
+ * 'categories' | 'none', change }.
+ */
+export function wholeBudgetFor(month = state.month, categoriesCents = null) {
+  const monthly = monthlyBudgetFor(month);
+  if (monthly.kind === 'month') return { cents: monthly.row.amount_cents, kind: 'month', change: 0 };
+  if (monthly.kind === 'default') {
+    const change = ownCategoryChange(month);
+    return { cents: monthly.row.amount_cents + change, kind: 'every', change };
+  }
+  return categoriesCents ? { cents: categoriesCents, kind: 'categories', change: 0 } : { cents: 0, kind: 'none', change: 0 };
+}
+
 /* ---------- Fixed monthly costs (Alex, 19 Nov 2026: only the rent, its own category Vuokra) ----------
    A fixed category counts as expected from the 1st: paying it changes nothing. Everything else is
    day-to-day spending, and only that drives the pace, "usually", the day rays and the "odd" flags. */
@@ -280,16 +312,18 @@ export function monthSummary(month = state.month) {
   const budgeted = rows.filter((r) => r.budgetCents !== null);
   const categoriesBudget = budgeted.reduce((s, r) => s + r.budgetCents, 0);
   const split = splitFor(month);
-  // The month's budget: the one for everything when it's set, else the categories' budgets added up. What
-  // counts against it: the fixed costs as expected (logged or not) plus the day-to-day spending, so paying
-  // the rent changes nothing.
-  const monthly = monthlyBudgetFor(month);
+  // The month's budget (wholeBudgetFor): its own, else every month's moved by the month's own category budgets,
+  // else the categories' budgets added up. What counts against it: the fixed costs as expected (logged or not)
+  // plus the day-to-day spending, so paying the rent changes nothing.
+  const whole = wholeBudgetFor(month, categoriesBudget);
+  const forEverything = whole.kind === 'month' || whole.kind === 'every';
   return {
     month, total, count: monthTransactions(month).length, rows, categoriesBudget, ...split,
-    budgetTotal: monthly.row ? monthly.row.amount_cents : categoriesBudget,
-    budgetedSpent: monthly.row ? split.fixedExpected + split.dayToDay
+    budgetTotal: whole.cents,
+    budgetedSpent: forEverything ? split.fixedExpected + split.dayToDay
       : budgeted.reduce((s, r) => s + (r.fixed ? r.expectedCents : r.spentCents), 0),
-    budgetKind: monthly.row ? (monthly.kind === 'month' ? 'month' : 'every') : 'categories',
+    budgetKind: forEverything ? whole.kind : 'categories',
+    budgetChange: whole.change,
   };
 }
 

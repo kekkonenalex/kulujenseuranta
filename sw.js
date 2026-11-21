@@ -6,7 +6,7 @@
    app loads is in SHELL.
    ============================================================ */
 
-const VERSION = '2.2.2';
+const VERSION = '2.2.3';
 const CACHE = `otso-expenses-v${VERSION}`;
 
 const SHELL = [

@@ -56,6 +56,7 @@ manifest.webmanifest  install as an app
 sql/build1.sql        build 1's database changes (and sql/rollback-build1.sql)
 sql/build1b.sql       the whole month's budget
 sql/build2.sql        fixed monthly costs, Vuokra and the rent (its rollback is at its end)
+sql/build3.sql        a month's own category budgets move its whole budget (undo: build2's section 5)
 supabase-schema.sql   the whole schema, idempotent (build 2's data steps are only in sql/build2.sql)
 tools/contract_test.py  checks the RPCs the Shortcut and Otso use, against the live project (read-only
                         unless --write); --preview shows what build 2 would move
@@ -123,6 +124,13 @@ So:
   whole-month budget when one is set (build 1b), else the categories' added up. Every key it had stays.
 - **`list_expenses`**: each expense says whether its category is `fixed`.
 - The colour column stays (backups carry it); the app no longer shows or writes colours.
+
+### Build 3 (`sql/build3.sql`, 21 Nov 2026)
+
+- **`expense_overview`**'s `budget_total_cents`, as the app counts it (2.2.3): the month's own whole budget
+  when set; else every month's, plus what the month's own category budgets add or take away (each one's
+  amount less the category's every-month budget); else the categories' budgets added up. So a month's
+  own category budgets add up to its whole budget (Alex, 21 Nov 2026).
 
 ## The iPhone Shortcut
 

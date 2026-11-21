@@ -98,3 +98,22 @@ Re-read `anchor.md` before each step.
 ## Then
 Choose from what Alex actually opened. First candidate: Ask Otso as a mailbox through otso_notes. Others:
 L5/L6 recurring, I3 runway, D6/N3 charts, D8 instant open.
+
+## 2.2.3 (21 Nov 2026): a month's own category budgets move its whole budget
+- Alex: "when I manually input month specific budgets to categories, those should add up to that month's whole
+  budget". Live data (Otso's read-only overview): every month's whole budget 1 530 €; September's own category
+  budgets add up to 940 €, October's to 1 910 €, both months showed 1 530 €; November matched only through its
+  own whole budget of 1 730 €, set by hand.
+- Decision: the month's own whole budget, when set, still wins (set on purpose); else every month's whole budget
+  plus what the month's own category budgets add or take away (each less the category's every-month budget), so
+  the categories add up to it and any every-month buffer is kept; else the categories' sum. state.wholeBudgetFor;
+  the Budgets sheet shows "<Month> only: every month's 1 530 € + 380 € from October's own category budgets".
+- sql/build3.sql: expense_overview's budget_total_cents by the same rule (Otso reads it); supabase-schema.sql
+  too. Parses with pglast 8.9 (SQL and PL/pgSQL); not run on a real database. contract_test --after has a build 3
+  check: before build3 it fails on September and October, as it should.
+- Checked in the preview (state injected, October): 1 910 € = 1 530 € + 380 €, the hint "add up to the month's".
+
+## Waiting on Alex (2.2.3)
+1. Merge `month-budgets` into `main` (deploys 2.2.3); open the app twice.
+2. Paste `sql/build3.sql` into Supabase's SQL Editor and Run; then `python tools/contract_test.py --after`.
+3. Optional: remove November's own whole budget (1 730 €): November then follows its categories like the others.

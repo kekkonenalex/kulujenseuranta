@@ -1434,7 +1434,8 @@ declare
   v_total    integer;
   v_prev     integer;
   v_budget   integer;
-  v_monthly  integer;
+  v_own      integer;
+  v_every    integer;
   v_so_far   integer;
   v_later    integer;
   v_day      integer;
@@ -1501,14 +1502,23 @@ begin
   select sum((r ->> 'budget_cents')::integer) into v_budget
   from jsonb_array_elements(v_rows) r where r ->> 'budget_cents' is not null;
 
-  -- The whole-month budget (build 1b), when that table is there and one is set.
+  -- The whole-month budget (build 1b): the month's own when set; else every month's, moved by the month's own
+  -- category budgets (each one's amount less its every-month budget, none: 0), so the categories still add up
+  -- to it (build 3, 21 Nov 2026); else the categories' budgets added up (above).
   if to_regclass('public.monthly_budgets') is not null then
-    execute 'select coalesce(
-               (select amount_cents from public.monthly_budgets where user_id = $1 and year_month = $2),
-               (select amount_cents from public.monthly_budgets where user_id = $1 and year_month is null))'
-      into v_monthly using v_user, v_month;
+    execute 'select (select amount_cents from public.monthly_budgets where user_id = $1 and year_month = $2),
+                    (select amount_cents from public.monthly_budgets where user_id = $1 and year_month is null)'
+      into v_own, v_every using v_user, v_month;
   end if;
-  v_budget := coalesce(v_monthly, v_budget);
+  if v_own is not null then
+    v_budget := v_own;
+  elsif v_every is not null then
+    select (v_every + coalesce(sum(m.amount_cents - coalesce(d.amount_cents, 0)), 0))::integer into v_budget
+    from public.budgets m
+    join public.categories c on c.id = m.category_id
+    left join public.budgets d on d.category_id = m.category_id and d.year_month is null
+    where c.user_id = v_user and not c.archived and m.year_month = v_month;
+  end if;
 
   v_forecast := null;
   if v_month = to_char(v_today, 'YYYY-MM') then

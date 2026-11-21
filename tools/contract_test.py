@@ -196,6 +196,17 @@ def main() -> int:
         check("list_expense_categories has Vuokra",
               any(re.sub(r"\s*\(kuvaus\)\s*$", "", n).strip() == "Vuokra" for n in names or []))
 
+        print("Build 3 (sql/build3.sql: a month's own category budgets move its whole budget)")
+        differ = []
+        for delta in range(-2, 4):
+            other = add_months(month, delta)
+            o = rpc(url, key, "expense_overview", p_token=tok, p_month=other)
+            added = sum(c.get("budget_cents") or 0 for c in o.get("categories") or [])
+            if o.get("budget_total_cents") != added:
+                differ.append(f"{other}: whole {eur(o.get('budget_total_cents'))}, categories {eur(added)}")
+        check("each month's whole budget is what its categories add up to (a month's own whole budget, or an "
+              "every-month one set apart from the categories', may differ on purpose)", not differ, "; ".join(differ))
+
     if args.preview:
         preview_build2(url, key, tok, names or [])
 
